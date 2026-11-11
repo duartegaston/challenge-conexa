@@ -1,0 +1,14 @@
+---
+description: Invariantes del challenge-conexa (capas, H2, SWAPI, JWT de demo)
+alwaysApply: true
+---
+
+# Invariantes
+
+- Catálogo solo desde SWAPI. No persistir people, films, starships ni vehicles.
+- Usuarios solo en H2 + Flyway. No reintroducir el driver de PostgreSQL sin un perfil que lo use.
+- Tests sin red real a SWAPI: WireMock o mock del cliente.
+- Controllers finos: delegan al servicio y devuelven el DTO. Errores en `GlobalExceptionHandler`.
+- Secretos reales fuera del repo. El default de `JWT_SECRET` es solo para local. En `prod`, `ProdJwtSecretGuard` rechaza ese default.
+
+Detalle de arquitectura: `.cursor/CONTEXT.md`.

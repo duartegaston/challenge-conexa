@@ -9,7 +9,11 @@ Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
 
 ## Deploy (Fly.io)
 
-**URL:** https://challenge-conexa.fly.dev
+| Recurso | URL |
+|---------|-----|
+| App | https://challenge-conexa.fly.dev |
+| **Swagger UI** | https://challenge-conexa.fly.dev/swagger-ui/index.html |
+| OpenAPI JSON | https://challenge-conexa.fly.dev/v3/api-docs |
 
 Está en el plan free de Fly.io: la máquina puede apagarse por inactividad (**cold start**). El primer request puede tardar varios segundos en responder.
 
@@ -49,7 +53,7 @@ Usuarios sembrados al arranque si no existen (`UserDataSeeder`). Overrides: `SEE
 | `user` | `user123` | USER |
 | `admin` | `admin123` | USER, ADMIN |
 
-Solo para demo. En prod cambiar `JWT_SECRET` y passwords seed.
+Solo para demo. En prod hay que setear `JWT_SECRET` (Fly secrets) y las passwords de seed. Si el perfil `prod` arranca con el secreto vacío o con el default público de `application.yml`, el proceso termina al inicio.
 
 ### Login (curl)
 
@@ -80,6 +84,25 @@ Filtro `name`/`title` → query remoto en SWAPI (`name` o `title`). Sin token �
 
 ---
 
+---
+
+## UI demo (look Star Wars)
+
+1. http://localhost:8080/ — login (JWT en `sessionStorage`)
+2. http://localhost:8080/app.html — tabs, filtro, paginación, detalle
+3. 401 → vuelve al login
+
+Tipografía Orbitron / Exo 2; fondo espacial; acentos oro crawl + azul sable.
+
+---
+
+## OpenAPI / Swagger
+
+- UI: http://localhost:8080/swagger-ui.html  
+- Spec: http://localhost:8080/v3/api-docs  
+- Security scheme `bearerAuth` (JWT). Login es público; recursos llevan tag + `@SecurityRequirement`.  
+- Flujo sugerido: `POST /api/v1/auth/login` → Authorize con el `accessToken` → probar `GET /api/v1/people`.
+
 ## Endpoints principales
 
 Base: `/api/v1`.
@@ -108,11 +131,11 @@ Cada fila resume una decisión tomada.
 | Decisión                                                                                         | Por qué                                                                                                                                                                                              |
 | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **REST API**                                                                                     | REST API, Simplicidad y menor sobrecarga.                                                                                                                                                            |
-| **JWT Bearer + Spring Security + roles.**                                                        |                                                                                                                                                                                                      |
+| **JWT Bearer + Spring Security + roles.**                                                        | Stateless para API REST (UI, Swagger, curl) sin sesión en servidor. Spring Security + roles cubren authz sin OAuth/IdP (sobrepeso para el challenge) ni Basic Auth (poco apto para SPA).              |
 | **Spring** `RestClient` **→ https://www.swapi.tech + timeouts + Caffeine**                       | SWAPI es la fuente de verdad; RestClient nativo del stack MVC; Caffeine mitiga latencia; no dependencias de terceros de dominio SW.                                                                  |
 | **Controllers sin** `ResponseEntity` **envolviendo cada respuesta**                              | Controllers thin: el tipo de retorno + `@ResponseStatus` / defaults MVC fijan el status; errores vía `@RestControllerAdvice`. `ResponseEntity` solo si hiciera falta variar status/headers por rama. |
 | **Paginación normalizada (**`PageResponse`**)**                                                  | Contrato estable hacia la UI; page/limit reenviados a SWAPI.                                                                                                                                         |
-| **H2 en prod (Fly) solo para** `UserEntity` **(auth/seed) + Flyway en caso de usar PostgreSQL.** | El challenge no exige persistir datos de SWAPI → sin Postgres para menor complejidad. Con H2 alcanza en este caso.                                                                                   |
+| **H2 + Flyway solo para** `UserEntity` **(auth/seed). Sin driver de PostgreSQL.**                | El challenge no persiste el catálogo de SWAPI. H2 en memoria (local/test) o en archivo (prod) alcanza. Flyway versiona el esquema; el driver de Postgres no está en el build. |
 | **Maven + Java 21 + capas clásicas MVC**                                                         | Packages `config`/`controller`/`service`/`model`/`repository`/`security`/`client`/`exception`.                                                                                                       |
 | **SonarCloud vía GitHub Action**                                                                 | Calidad visible cuando hay `SONAR_TOKEN`; no bloquea el MVP.                                                                                                                                         |
 | **Deploy Fly.io + Docker multi-stage (Java 21)**                                                 | Free/hobby path; `JWT_SECRET` vía Fly secrets.                                                                                                                                                       |
@@ -122,11 +145,13 @@ Cada fila resume una decisión tomada.
 
 ## Metodología: Cursor + SDD
 
-Utilice Cursor para el desarrollo, con una metodologia Spec Driven Development. Primero le di el contexto con todas las especificaciones, luego genere un plan con distintas fases de implementacion puliendo detalles y tomando distintas deciciones. Finalmente luego de implementar cada fase realice una review de lo desarrollado y por ultimo la ejecucion y pruebas.
+Utilicé Cursor para el desarrollo, con una metodología Spec Driven Development. Primero le di el contexto con todas las especificaciones, luego generé un plan con distintas fases de implementación puliendo detalles y tomando distintas decisiones. Finalmente luego de implementar cada fase realicé una review de lo desarrollado y por último la ejecución y pruebas.
 
 1. **Plan** — alcance, ADRs y fases.
 2. **Fases** — checklist + Definition of Done.
 3. **Ejecución** — una fase a la vez.
+
+Contexto para el agente: [`.cursor/CONTEXT.md`](.cursor/CONTEXT.md), rules en `.cursor/rules/` y la skill `.cursor/skills/java-spring-rest/`.
 
 ---
 
@@ -148,31 +173,30 @@ com.conexa.challenge
 
 ## SWAPI + caché
 
-- **Origen:** https://www.swapi.tech/api (configurable `swapi.base-url`)  
-- **Cliente:** Spring `RestClient` (sin SDK Star Wars)  
-- **Timeouts:** `swapi.connect-timeout-ms`, `swapi.read-timeout-ms`  
-- **Caché:** Caffeine `swapi-lists` / `swapi-details` (TTL `cache.swapi.ttl-minutes`, default 5)  
-- **Errores:** origen caído → **502 Bad Gateway**  
+SWAPI es un servicio externo: cada listado o ficha suma latencia de red y, en Fly, el cold start ya es lento. La UI pagina y repite los mismos ids. Caffeine guarda esas respuestas en memoria del proceso para no volver a pegarle al origen en cada request igual.
+
+No reemplaza a SWAPI. Si el dato no está, o venció el TTL, el cliente va al origen y guarda el resultado. Errores y 404 no se cachean: se lanzan antes de devolver un valor. El tope de entradas (`cache.swapi.max-size`, default 300) y el TTL corto (default 5 minutos) limitan la RAM en la VM de 512 MB.
+
+Hay dos cachés para que la clave de una página no pise la de un detalle:
+
+- `swapi-lists` — recurso + page + limit + filtro
+- `swapi-details` — recurso + id
+
+```mermaid
+flowchart LR
+  client[UI_Swagger_o_curl] --> api[API]
+  api --> cache[Caffeine]
+  cache -->|hit| api
+  cache -->|miss| swapi[swapi.tech]
+  swapi --> cache
+```
+
+- **Origen:** https://www.swapi.tech/api (configurable `swapi.base-url`)
+- **Cliente:** Spring `RestClient` (sin SDK Star Wars)
+- **Timeouts:** `swapi.connect-timeout-ms`, `swapi.read-timeout-ms`
+- **Errores:** origen caído → **502 Bad Gateway**
 - Tests: WireMock / mocks — **nunca** red real a SWAPI en CI
 
----
-
-## UI demo (look Star Wars)
-
-1. http://localhost:8080/ — login (JWT en `sessionStorage`)
-2. http://localhost:8080/app.html — tabs, filtro, paginación, detalle
-3. 401 → vuelve al login
-
-Tipografía Orbitron / Exo 2; fondo espacial; acentos oro crawl + azul sable.
-
----
-
-## OpenAPI / Swagger
-
-- UI: http://localhost:8080/swagger-ui.html  
-- Spec: http://localhost:8080/v3/api-docs  
-- Security scheme `bearerAuth` (JWT). Login es público; recursos llevan tag + `@SecurityRequirement`.  
-- Flujo sugerido: `POST /api/v1/auth/login` → Authorize con el `accessToken` → probar `GET /api/v1/people`.
 
 ---
 

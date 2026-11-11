@@ -1,0 +1,21 @@
+---
+description: Convenciones Java 21 y Spring Boot de este repo
+globs: "**/*.java"
+alwaysApply: false
+---
+
+# Java y Spring
+
+- Java 21. DTOs de API son `record`. Entidades y servicios usan Lombok (`@RequiredArgsConstructor`, `@Getter`); no anotar records con Lombok.
+- Inyección por constructor. Un tipo por archivo, package que ya existe (`config`, `controller`, `service`, `client`, `security`, `model`, `repository`, `exception`).
+- HTTP saliente con el `RestClient` de `RestClientConfig`, con los timeouts de `SwapiProperties`.
+- Caché: `@Cacheable` con `CacheConfig.SWAPI_LISTS` o `CacheConfig.SWAPI_DETAILS`, no literales.
+- Properties nuevas como `@ConfigurationProperties` record, registradas donde ya se habilitan las otras.
+- Perfiles `local`, `test` y `prod`. No agregar otro sin datasource en `application.yml`.
+
+```java
+// Bien: el controller no arma el status de error
+public PageResponse<SwapiItem> list(...) {
+    return peopleService.list(page, limit, name);
+}
+```

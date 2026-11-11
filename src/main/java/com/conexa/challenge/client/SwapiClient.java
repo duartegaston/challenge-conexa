@@ -1,5 +1,6 @@
 package com.conexa.challenge.client;
 
+import com.conexa.challenge.config.CacheConfig;
 import com.conexa.challenge.exception.ResourceNotFoundException;
 import com.conexa.challenge.exception.SwapiUnavailableException;
 import com.conexa.challenge.model.dto.PageResponse;
@@ -36,7 +37,7 @@ public class SwapiClient {
      * Obtiene un listado paginado (y opcionalmente filtrado) de un recurso SWAPI.
      */
     @Cacheable(
-            cacheNames = "swapi-lists",
+            cacheNames = CacheConfig.SWAPI_LISTS,
             key = "#resource.path() + ':' + #page + ':' + #limit + ':' + (#search == null ? '' : #search)")
     public PageResponse<SwapiItem> getList(SwapiResource resource, int page, int limit, String search) {
         int safePage = Math.max(page, 1);
@@ -80,7 +81,7 @@ public class SwapiClient {
     /**
      * Obtiene el detalle de un recurso SWAPI por id.
      */
-    @Cacheable(cacheNames = "swapi-details", key = "#resource.path() + ':' + #id")
+    @Cacheable(cacheNames = CacheConfig.SWAPI_DETAILS, key = "#resource.path() + ':' + #id")
     public SwapiItem getById(SwapiResource resource, String id) {
         try {
             Map<String, Object> body = swapiRestClient

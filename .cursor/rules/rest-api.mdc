@@ -1,0 +1,16 @@
+---
+description: Contrato REST /api/v1, seguridad y errores
+globs: "**/controller/**/*.java"
+alwaysApply: false
+---
+
+# API REST
+
+- Prefijo `/api/v1`. Un controller por recurso, tag OpenAPI y `@SecurityRequirement(name = "bearerAuth")` en los protegidos.
+- Login es el único POST público. Recursos de catálogo: `@PreAuthorize("hasRole('USER')")`.
+- Listado: `page` (min 1), `limit` (1–100, opcional), filtro `name`. Films acepta `title` y lo prioriza.
+- Respuesta de lista: `PageResponse`. Detalle: `SwapiItem`. No envolver el caso feliz en `ResponseEntity`.
+- Validación con `jakarta.validation` en el controller (`@Validated`). 400 lo arma el advice.
+- Mensajes de error en inglés, como `ErrorResponse` hoy (`Unauthorized`, `Invalid username or password`).
+
+No agregar endpoints de escritura del catálogo: SWAPI es de solo lectura.
