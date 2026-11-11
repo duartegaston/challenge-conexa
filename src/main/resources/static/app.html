@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CONEXA — Catálogo</title>
+    <link rel="stylesheet" href="/css/sw.css" />
+  </head>
+  <body>
+    <div class="stars" aria-hidden="true"></div>
+    <div class="shell">
+      <header class="app-top">
+        <h1 class="app-brand">CONEXA</h1>
+        <div class="app-meta">
+          <span id="who"></span>
+          <button type="button" class="linkish" id="logout">Salir</button>
+        </div>
+      </header>
+
+      <main class="main">
+        <nav class="tabs" role="tablist" aria-label="Recursos">
+          <button type="button" class="tab" role="tab" data-resource="people" aria-selected="true">People</button>
+          <button type="button" class="tab" role="tab" data-resource="films" aria-selected="false">Films</button>
+          <button type="button" class="tab" role="tab" data-resource="starships" aria-selected="false">Starships</button>
+          <button type="button" class="tab" role="tab" data-resource="vehicles" aria-selected="false">Vehicles</button>
+        </nav>
+
+        <div class="controls">
+          <input id="filter" type="search" placeholder="Filtrar por nombre / título…" />
+          <select id="limit" aria-label="Límite">
+            <option value="5">5 / pág.</option>
+            <option value="10" selected>10 / pág.</option>
+            <option value="20">20 / pág.</option>
+          </select>
+          <button type="button" class="cta" id="search-btn" style="padding: 0.7rem 1rem; margin: 0">Buscar</button>
+        </div>
+
+        <p id="status" class="status" role="status"></p>
+        <ul id="results" class="results"></ul>
+
+        <div class="pager">
+          <button type="button" id="prev">← Anterior</button>
+          <span id="page-info">Página 1</span>
+          <button type="button" id="next">Siguiente →</button>
+        </div>
+
+        <section id="detail" class="detail hidden" aria-live="polite"></section>
+      </main>
+    </div>
+    <script src="/js/auth.js"></script>
+    <script src="/js/app.js"></script>
+  </body>
+</html>

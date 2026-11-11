@@ -2,7 +2,7 @@
 
 API REST en **Java 21 / Spring Boot** que integra [SWAPI](https://swapi.dev/), con autenticación JWT + roles, UI de demo con estética Star Wars, OpenAPI, tests y deploy en host gratuito.
 
-> **Estado actual:** Fase 3 — Resources REST (people/films/starships/vehicles). UI demo pendiente (Fase 4).
+> **Estado actual:** Fase 4 — UI demo Star Wars + API completa (auth, SWAPI client, resources).
 
 Repo: https://github.com/duartegaston/challenge-conexa  
 Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
@@ -21,7 +21,7 @@ Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
 ./mvnw spring-boot:run
 ```
 
-- App: http://localhost:8080  
+- App / UI demo: http://localhost:8080/ (login) → http://localhost:8080/app.html  
 - Health: http://localhost:8080/actuator/health  
 - Swagger UI: http://localhost:8080/swagger-ui.html  
 
@@ -213,7 +213,14 @@ Flujo: HTTP → JWT filter → Controller → Service → SwapiClient/UserReposi
 
 ## UI demo (look Star Wars)
 
-Pendiente — Fase 4. Login + listados paginados/filtrables con tipografía, colores y atmósfera inspirados en Star Wars (no admin genérico).
+Estática servida por Spring (`src/main/resources/static/`):
+
+1. Abrir http://localhost:8080/  
+2. Login con seed (`user` / `user123`) — el JWT queda en `sessionStorage`  
+3. Catálogo en `/app.html`: tabs People / Films / Starships / Vehicles, filtro, paginación y detalle al click  
+4. Sin token o 401 → vuelve al login  
+
+Atmósfera: fondo espacial, tipografía Orbitron/Exo 2, acentos oro crawl + azul sable. No es un admin genérico.
 
 ---
 

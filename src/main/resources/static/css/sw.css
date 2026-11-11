@@ -1,0 +1,418 @@
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Exo+2:wght@400;600&display=swap");
+
+:root {
+  --space-deep: #05070f;
+  --space-mid: #0b1224;
+  --star-gold: #ffe81f;
+  --saber-blue: #4bd5ff;
+  --saber-red: #ff4d4d;
+  --fog: rgba(180, 210, 255, 0.08);
+  --text: #e8eefc;
+  --muted: #9aadc8;
+  --line: rgba(75, 213, 255, 0.28);
+  --danger: #ff6b6b;
+  --ok: #7dffb3;
+  --font-display: "Orbitron", sans-serif;
+  --font-body: "Exo 2", sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--text);
+  font-family: var(--font-body);
+  background: var(--space-deep);
+}
+
+body {
+  position: relative;
+  overflow-x: hidden;
+}
+
+.stars,
+.stars::before,
+.stars::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-repeat: repeat;
+}
+
+.stars {
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, #fff 99%, transparent),
+    radial-gradient(1px 1px at 80px 120px, rgba(255, 255, 255, 0.7) 99%, transparent),
+    radial-gradient(1.5px 1.5px at 160px 70px, #fff 99%, transparent);
+  background-size: 220px 180px;
+  animation: drift 80s linear infinite;
+  opacity: 0.55;
+}
+
+.stars::before {
+  background-image:
+    radial-gradient(1px 1px at 40px 90px, rgba(255, 232, 31, 0.7) 99%, transparent),
+    radial-gradient(1px 1px at 140px 40px, rgba(75, 213, 255, 0.8) 99%, transparent);
+  background-size: 280px 240px;
+  animation: drift 120s linear infinite reverse;
+  opacity: 0.4;
+}
+
+.stars::after {
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(75, 213, 255, 0.12), transparent 45%),
+    radial-gradient(ellipse at 80% 90%, rgba(255, 232, 31, 0.08), transparent 40%),
+    linear-gradient(180deg, transparent, rgba(5, 7, 15, 0.85) 90%);
+}
+
+@keyframes drift {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-180px);
+  }
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+/* —— Login (full-bleed hero) —— */
+.login-hero {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1.25rem;
+  background:
+    radial-gradient(ellipse at 50% 30%, rgba(75, 213, 255, 0.12), transparent 50%),
+    linear-gradient(180deg, rgba(5, 7, 15, 0.2), rgba(5, 7, 15, 0.92));
+}
+
+.login-compose {
+  width: min(440px, 100%);
+  text-align: center;
+  animation: rise 0.9s ease-out both;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(2.4rem, 8vw, 3.4rem);
+  letter-spacing: 0.18em;
+  color: var(--star-gold);
+  text-shadow: 0 0 24px rgba(255, 232, 31, 0.35);
+  margin: 0 0 0.75rem;
+  animation: glow 3.5s ease-in-out infinite;
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    text-shadow: 0 0 18px rgba(255, 232, 31, 0.25);
+  }
+  50% {
+    text-shadow: 0 0 36px rgba(255, 232, 31, 0.55);
+  }
+}
+
+.tagline {
+  margin: 0 0 2rem;
+  color: var(--muted);
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+}
+
+.login-form {
+  display: grid;
+  gap: 0.85rem;
+  text-align: left;
+}
+
+.login-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--saber-blue);
+}
+
+.login-form input {
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: rgba(11, 18, 36, 0.85);
+  color: var(--text);
+  font: inherit;
+}
+
+.login-form input:focus {
+  outline: 1px solid var(--saber-blue);
+  box-shadow: 0 0 0 3px rgba(75, 213, 255, 0.15);
+}
+
+.cta {
+  margin-top: 0.5rem;
+  padding: 0.95rem 1.25rem;
+  border: 1px solid var(--star-gold);
+  background: linear-gradient(180deg, rgba(255, 232, 31, 0.18), rgba(255, 232, 31, 0.05));
+  color: var(--star-gold);
+  font-family: var(--font-display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.cta:hover {
+  transform: translateY(-1px);
+  background: linear-gradient(180deg, rgba(255, 232, 31, 0.28), rgba(255, 232, 31, 0.08));
+}
+
+.cta:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.hint {
+  margin: 1.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.error-banner {
+  margin-top: 1rem;
+  color: var(--danger);
+  min-height: 1.25rem;
+  font-size: 0.95rem;
+}
+
+/* —— App shell —— */
+.app-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(11, 18, 36, 0.95), rgba(5, 7, 15, 0.7));
+  backdrop-filter: blur(6px);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.app-brand {
+  font-family: var(--font-display);
+  color: var(--star-gold);
+  letter-spacing: 0.16em;
+  font-size: 1.15rem;
+  margin: 0;
+}
+
+.app-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.linkish {
+  background: none;
+  border: none;
+  color: var(--saber-blue);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.main {
+  width: min(1100px, 100%);
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 3rem;
+  animation: rise 0.55s ease-out both;
+}
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.tab {
+  padding: 0.55rem 0.9rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  color: var(--saber-blue);
+  border-bottom-color: var(--saber-blue);
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+@media (max-width: 720px) {
+  .controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+.controls input,
+.controls select {
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: rgba(11, 18, 36, 0.9);
+  color: var(--text);
+  font: inherit;
+}
+
+.results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.results li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.95rem 0.25rem;
+  border-bottom: 1px solid rgba(75, 213, 255, 0.12);
+  cursor: pointer;
+  transition: background 0.15s ease, padding-left 0.15s ease;
+}
+
+.results li:hover {
+  background: var(--fog);
+  padding-left: 0.45rem;
+}
+
+.results .name {
+  font-weight: 600;
+}
+
+.results .id {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-family: var(--font-display);
+  letter-spacing: 0.08em;
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.pager button {
+  padding: 0.55rem 0.95rem;
+  border: 1px solid var(--line);
+  background: rgba(11, 18, 36, 0.85);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.pager button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.status {
+  min-height: 1.4rem;
+  margin: 0.5rem 0 1rem;
+  color: var(--muted);
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+/* Detail panel */
+.detail {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  animation: rise 0.35s ease-out both;
+}
+
+.detail h2 {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  color: var(--star-gold);
+  letter-spacing: 0.08em;
+  font-size: 1.35rem;
+}
+
+.detail .sub {
+  margin: 0 0 1rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0;
+}
+
+.fields dt {
+  color: var(--saber-blue);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fields dd {
+  margin: 0.2rem 0 0;
+  word-break: break-word;
+}
+
+.hidden {
+  display: none !important;
+}

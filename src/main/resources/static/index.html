@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CONEXA — Acceso</title>
+    <link rel="stylesheet" href="/css/sw.css" />
+  </head>
+  <body>
+    <div class="stars" aria-hidden="true"></div>
+    <main class="shell login-hero">
+      <div class="login-compose">
+        <h1 class="brand">CONEXA</h1>
+        <p class="tagline">Archivos del Catálogo Galáctico · SWAPI</p>
+        <form id="login-form" class="login-form" autocomplete="on">
+          <label>
+            Usuario
+            <input id="username" name="username" type="text" required value="user" />
+          </label>
+          <label>
+            Contraseña
+            <input id="password" name="password" type="password" required value="user123" />
+          </label>
+          <button class="cta" type="submit" id="login-btn">Entrar</button>
+        </form>
+        <p class="hint">Demo: <code>user</code> / <code>user123</code> · <code>admin</code> / <code>admin123</code></p>
+        <p id="login-error" class="error-banner" role="alert"></p>
+      </div>
+    </main>
+    <script src="/js/auth.js"></script>
+    <script src="/js/login.js"></script>
+  </body>
+</html>
