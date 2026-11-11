@@ -1,6 +1,7 @@
 package com.conexa.challenge.client;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
+import static com.github.tomakehurst.wiremock.client.WireMock.equalTo;
 import static com.github.tomakehurst.wiremock.client.WireMock.get;
 import static com.github.tomakehurst.wiremock.client.WireMock.getRequestedFor;
 import static com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo;
@@ -61,25 +62,26 @@ class SwapiClientTest {
 
     @Test
     void getListReturnsMappedPageFromMockedSwapi() {
-        SWAPI.stubFor(get(urlPathEqualTo("/people/"))
+        SWAPI.stubFor(get(urlPathEqualTo("/people"))
                 .willReturn(aResponse()
                         .withHeader("Content-Type", "application/json")
                         .withBody("""
                                 {
-                                  "count": 1,
+                                  "message": "ok",
+                                  "total_records": 1,
                                   "next": null,
                                   "previous": null,
                                   "results": [
                                     {
+                                      "uid": "1",
                                       "name": "Luke Skywalker",
-                                      "height": "172",
-                                      "url": "https://swapi.dev/api/people/1/"
+                                      "url": "https://www.swapi.tech/api/people/1"
                                     }
                                   ]
                                 }
                                 """)));
 
-        PageResponse<SwapiItem> page = swapiClient.getList(SwapiResource.PEOPLE, 1, null);
+        PageResponse<SwapiItem> page = swapiClient.getList(SwapiResource.PEOPLE, 1, 10, null);
 
         assertThat(page.total()).isEqualTo(1);
         assertThat(page.hasNext()).isFalse();
@@ -90,40 +92,42 @@ class SwapiClientTest {
 
     @Test
     void secondListCallUsesCacheWithoutHittingSwapiAgain() {
-        SWAPI.stubFor(get(urlPathEqualTo("/people/"))
+        SWAPI.stubFor(get(urlPathEqualTo("/people"))
+                .withQueryParam("name", equalTo("leia"))
                 .willReturn(aResponse()
                         .withHeader("Content-Type", "application/json")
                         .withBody("""
                                 {
-                                  "count": 1,
+                                  "message": "ok",
+                                  "total_records": 1,
                                   "next": null,
                                   "previous": null,
                                   "results": [
-                                    {"name":"Leia Organa","url":"https://swapi.dev/api/people/5/"}
+                                    {"uid":"5","name":"Leia Organa","url":"https://www.swapi.tech/api/people/5"}
                                   ]
                                 }
                                 """)));
 
-        PageResponse<SwapiItem> first = swapiClient.getList(SwapiResource.PEOPLE, 1, "leia");
-        PageResponse<SwapiItem> second = swapiClient.getList(SwapiResource.PEOPLE, 1, "leia");
+        PageResponse<SwapiItem> first = swapiClient.getList(SwapiResource.PEOPLE, 1, 10, "leia");
+        PageResponse<SwapiItem> second = swapiClient.getList(SwapiResource.PEOPLE, 1, 10, "leia");
 
         assertThat(first.content().getFirst().name()).isEqualTo("Leia Organa");
         assertThat(second.content().getFirst().id()).isEqualTo("5");
-        SWAPI.verify(1, getRequestedFor(urlPathEqualTo("/people/")));
+        SWAPI.verify(1, getRequestedFor(urlPathEqualTo("/people")));
     }
 
     @Test
     void getListThrowsWhenSwapiReturnsServerError() {
-        SWAPI.stubFor(get(urlPathEqualTo("/films/")).willReturn(aResponse().withStatus(500).withBody("boom")));
+        SWAPI.stubFor(get(urlPathEqualTo("/films")).willReturn(aResponse().withStatus(500).withBody("boom")));
 
-        assertThatThrownBy(() -> swapiClient.getList(SwapiResource.FILMS, 1, null))
+        assertThatThrownBy(() -> swapiClient.getList(SwapiResource.FILMS, 1, 10, null))
                 .isInstanceOf(SwapiUnavailableException.class)
                 .hasMessageContaining("SWAPI");
     }
 
     @Test
     void getByIdThrowsNotFoundOn404() {
-        SWAPI.stubFor(get(urlPathEqualTo("/starships/999/")).willReturn(aResponse().withStatus(404).withBody("Not found")));
+        SWAPI.stubFor(get(urlPathEqualTo("/starships/999")).willReturn(aResponse().withStatus(404).withBody("Not found")));
 
         assertThatThrownBy(() -> swapiClient.getById(SwapiResource.STARSHIPS, "999"))
                 .isInstanceOf(ResourceNotFoundException.class)
@@ -132,13 +136,19 @@ class SwapiClientTest {
 
     @Test
     void getByIdCachesSuccessfulDetail() {
-        SWAPI.stubFor(get(urlPathEqualTo("/vehicles/4/"))
+        SWAPI.stubFor(get(urlPathEqualTo("/vehicles/4"))
                 .willReturn(aResponse()
                         .withHeader("Content-Type", "application/json")
                         .withBody("""
                                 {
-                                  "name": "Sand Crawler",
-                                  "url": "https://swapi.dev/api/vehicles/4/"
+                                  "message": "ok",
+                                  "result": {
+                                    "uid": "4",
+                                    "properties": {
+                                      "name": "Sand Crawler",
+                                      "url": "https://www.swapi.tech/api/vehicles/4"
+                                    }
+                                  }
                                 }
                                 """)));
 
@@ -147,6 +157,6 @@ class SwapiClientTest {
 
         assertThat(first.name()).isEqualTo("Sand Crawler");
         assertThat(second.id()).isEqualTo("4");
-        SWAPI.verify(1, getRequestedFor(urlPathEqualTo("/vehicles/4/")));
+        SWAPI.verify(1, getRequestedFor(urlPathEqualTo("/vehicles/4")));
     }
 }

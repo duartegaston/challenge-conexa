@@ -5,6 +5,8 @@ import com.conexa.challenge.model.dto.LoginResponse;
 import com.conexa.challenge.model.dto.MeResponse;
 import com.conexa.challenge.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -32,12 +34,16 @@ public class AuthController {
 
     @PostMapping("/login")
     @ResponseStatus(HttpStatus.OK)
-    @Operation(summary = "Login y emisión de JWT")
+    @SecurityRequirements
+    @Operation(
+            summary = "Login y emisión de JWT",
+            description = "Público. Body `{ username, password }` → `{ accessToken, tokenType, expiresIn, roles }`.")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
     }
 
     @GetMapping("/me")
+    @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Usuario autenticado actual")
     public MeResponse me(Authentication authentication) {
         List<String> roles = authentication.getAuthorities().stream()

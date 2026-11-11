@@ -45,7 +45,7 @@ class AuthPeopleIntegrationTest {
 
     @Test
     void shouldAccessPeopleWithBearerTokenFromLogin() throws Exception {
-        when(swapiClient.getList(eq(SwapiResource.PEOPLE), eq(1), isNull()))
+        when(swapiClient.getList(eq(SwapiResource.PEOPLE), eq(1), eq(10), isNull()))
                 .thenReturn(new PageResponse<>(
                         List.of(new SwapiItem("1", "Luke Skywalker", Map.of())), 1, 10, 82, true));
 

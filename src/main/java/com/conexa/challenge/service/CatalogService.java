@@ -21,13 +21,14 @@ public class CatalogService {
     private final SwapiClient swapiClient;
 
     /**
-     * Lista un recurso con paginación, límite local y filtro por nombre (search remoto).
+     * Lista un recurso con paginación, límite y filtro por nombre (query remoto en SWAPI).
      */
     public PageResponse<SwapiItem> list(SwapiResource resource, int page, Integer limit, String name) {
         int safePage = Math.max(page, 1);
+        int safeLimit = normalizeLimit(limit);
         String search = blankToNull(name);
-        PageResponse<SwapiItem> fromSwapi = swapiClient.getList(resource, safePage, search);
-        return applyLimit(fromSwapi, limit);
+        PageResponse<SwapiItem> fromSwapi = swapiClient.getList(resource, safePage, safeLimit, search);
+        return applyLimit(fromSwapi, safeLimit);
     }
 
     /**
@@ -37,10 +38,9 @@ public class CatalogService {
         return swapiClient.getById(resource, id);
     }
 
-    static PageResponse<SwapiItem> applyLimit(PageResponse<SwapiItem> page, Integer limit) {
-        int safeLimit = normalizeLimit(limit);
-        List<SwapiItem> content = page.content().stream().limit(safeLimit).toList();
-        return new PageResponse<>(content, page.page(), safeLimit, page.total(), page.hasNext());
+    static PageResponse<SwapiItem> applyLimit(PageResponse<SwapiItem> page, int limit) {
+        List<SwapiItem> content = page.content().stream().limit(limit).toList();
+        return new PageResponse<>(content, page.page(), limit, page.total(), page.hasNext());
     }
 
     static int normalizeLimit(Integer limit) {

@@ -18,7 +18,8 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Cliente HTTP hacia SWAPI con caché en memoria (sin persistir el catálogo).
+ * Cliente HTTP hacia SWAPI (https://www.swapi.tech) vía Spring RestClient + caché Caffeine.
+ * No usa SDK de terceros específico de Star Wars.
  */
 @Component
 @RequiredArgsConstructor
@@ -36,18 +37,23 @@ public class SwapiClient {
      */
     @Cacheable(
             cacheNames = "swapi-lists",
-            key = "#resource.path() + ':' + #page + ':' + (#search == null ? '' : #search)")
-    public PageResponse<SwapiItem> getList(SwapiResource resource, int page, String search) {
+            key = "#resource.path() + ':' + #page + ':' + #limit + ':' + (#search == null ? '' : #search)")
+    public PageResponse<SwapiItem> getList(SwapiResource resource, int page, int limit, String search) {
         int safePage = Math.max(page, 1);
+        int safeLimit = Math.min(Math.max(limit, 1), 100);
         try {
             SwapiRawListResponse raw = swapiRestClient
                     .get()
                     .uri(uriBuilder -> {
-                        uriBuilder.path("/{resource}/").queryParam("page", safePage);
+                        var builder = uriBuilder
+                                .path("/{resource}")
+                                .queryParam("page", safePage)
+                                .queryParam("limit", safeLimit);
                         if (search != null && !search.isBlank()) {
-                            uriBuilder.queryParam("search", search.trim());
+                            String filterParam = resource == SwapiResource.FILMS ? "title" : "name";
+                            builder.queryParam(filterParam, search.trim());
                         }
-                        return uriBuilder.build(resource.path());
+                        return builder.build(resource.path());
                     })
                     .retrieve()
                     .onStatus(HttpStatusCode::isError, (request, response) -> {
@@ -59,7 +65,7 @@ public class SwapiClient {
             if (raw == null) {
                 throw new SwapiUnavailableException("SWAPI returned an empty list body");
             }
-            return swapiMapper.toPage(raw, resource, safePage);
+            return swapiMapper.toPage(raw, resource, safePage, safeLimit);
         } catch (SwapiUnavailableException | ResourceNotFoundException ex) {
             throw ex;
         } catch (RestClientResponseException ex) {
@@ -79,7 +85,7 @@ public class SwapiClient {
         try {
             Map<String, Object> body = swapiRestClient
                     .get()
-                    .uri("/{resource}/{id}/", resource.path(), id)
+                    .uri("/{resource}/{id}", resource.path(), id)
                     .retrieve()
                     .onStatus(status -> status.value() == 404, (request, response) -> {
                         throw new ResourceNotFoundException(
@@ -94,7 +100,7 @@ public class SwapiClient {
             if (body == null || body.isEmpty()) {
                 throw new SwapiUnavailableException("SWAPI returned an empty detail body");
             }
-            return swapiMapper.toItem(body, resource);
+            return swapiMapper.toItemFromDetail(body, resource);
         } catch (SwapiUnavailableException | ResourceNotFoundException ex) {
             throw ex;
         } catch (RestClientResponseException ex) {

@@ -45,7 +45,7 @@ class PeopleResourceTest {
     @Test
     @WithMockUser(roles = "USER")
     void listReturnsNormalizedPage() throws Exception {
-        when(swapiClient.getList(eq(SwapiResource.PEOPLE), eq(1), isNull()))
+        when(swapiClient.getList(eq(SwapiResource.PEOPLE), eq(1), eq(10), isNull()))
                 .thenReturn(new PageResponse<>(
                         List.of(new SwapiItem("1", "Luke Skywalker", Map.of("height", "172"))),
                         1,
@@ -66,7 +66,7 @@ class PeopleResourceTest {
     @Test
     @WithMockUser(roles = "USER")
     void listFiltersByNameViaSwapiSearch() throws Exception {
-        when(swapiClient.getList(SwapiResource.PEOPLE, 1, "leia"))
+        when(swapiClient.getList(SwapiResource.PEOPLE, 1, 10, "leia"))
                 .thenReturn(new PageResponse<>(
                         List.of(new SwapiItem("5", "Leia Organa", Map.of())), 1, 10, 1, false));
 
@@ -74,7 +74,7 @@ class PeopleResourceTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].name").value("Leia Organa"));
 
-        verify(swapiClient).getList(SwapiResource.PEOPLE, 1, "leia");
+        verify(swapiClient).getList(SwapiResource.PEOPLE, 1, 10, "leia");
     }
 
     @Test
@@ -104,7 +104,7 @@ class PeopleResourceTest {
     @Test
     @WithMockUser(roles = "USER")
     void listMapsSwapiFailureTo502() throws Exception {
-        when(swapiClient.getList(eq(SwapiResource.PEOPLE), eq(1), isNull()))
+        when(swapiClient.getList(eq(SwapiResource.PEOPLE), eq(1), eq(10), isNull()))
                 .thenThrow(new SwapiUnavailableException("SWAPI is unavailable"));
 
         mockMvc.perform(get("/api/v1/people"))

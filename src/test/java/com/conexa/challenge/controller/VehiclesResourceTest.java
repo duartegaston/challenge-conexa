@@ -34,7 +34,7 @@ class VehiclesResourceTest {
     @Test
     @WithMockUser(roles = "USER")
     void listAndGetById() throws Exception {
-        when(swapiClient.getList(SwapiResource.VEHICLES, 1, "sand"))
+        when(swapiClient.getList(SwapiResource.VEHICLES, 1, 10, "sand"))
                 .thenReturn(new PageResponse<>(
                         List.of(new SwapiItem("4", "Sand Crawler", Map.of())), 1, 10, 1, false));
         when(swapiClient.getById(SwapiResource.VEHICLES, "4"))

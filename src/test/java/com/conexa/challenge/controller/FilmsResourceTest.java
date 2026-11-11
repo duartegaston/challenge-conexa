@@ -35,7 +35,7 @@ class FilmsResourceTest {
     @Test
     @WithMockUser(roles = "USER")
     void listPrefersTitleOverNameForSearch() throws Exception {
-        when(swapiClient.getList(SwapiResource.FILMS, 1, "hope"))
+        when(swapiClient.getList(SwapiResource.FILMS, 1, 10, "hope"))
                 .thenReturn(new PageResponse<>(
                         List.of(new SwapiItem("1", "A New Hope", Map.of())), 1, 10, 1, false));
 
@@ -43,7 +43,7 @@ class FilmsResourceTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].name").value("A New Hope"));
 
-        verify(swapiClient).getList(SwapiResource.FILMS, 1, "hope");
+        verify(swapiClient).getList(SwapiResource.FILMS, 1, 10, "hope");
     }
 
     @Test

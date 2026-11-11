@@ -34,7 +34,7 @@ class StarshipsResourceTest {
     @Test
     @WithMockUser(roles = "USER")
     void listAndGetById() throws Exception {
-        when(swapiClient.getList(SwapiResource.STARSHIPS, 1, null))
+        when(swapiClient.getList(SwapiResource.STARSHIPS, 1, 10, null))
                 .thenReturn(new PageResponse<>(
                         List.of(new SwapiItem("2", "CR90 corvette", Map.of())), 1, 10, 36, true));
         when(swapiClient.getById(SwapiResource.STARSHIPS, "2"))

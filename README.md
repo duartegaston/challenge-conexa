@@ -1,8 +1,8 @@
 # Challenge Conexa — API Star Wars (SWAPI)
 
-API REST en **Java 21 / Spring Boot** que integra [SWAPI](https://swapi.dev/), con autenticación JWT + roles, UI de demo con estética Star Wars, OpenAPI, tests y deploy en host gratuito.
+API REST en **Java 21 / Spring Boot** que integra [SWAPI](https://www.swapi.tech/) con autenticación JWT + roles, UI de demo con estética Star Wars, OpenAPI, tests y path de deploy en host gratuito.
 
-> **Estado actual:** Fase 4 — UI demo Star Wars + API completa (auth, SWAPI client, resources).
+> **Estado actual:** Fase 6 — docs + OpenAPI + Sonar (CI listo; token SonarCloud pendiente de configurar). Deploy vivo = Fase 7.
 
 Repo: https://github.com/duartegaston/challenge-conexa  
 Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
@@ -13,7 +13,7 @@ Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
 
 ### Requisitos
 - Java 21+
-- Maven 3.9+ (o usar el wrapper `./mvnw`)
+- Maven 3.9+ (o el wrapper `./mvnw`)
 
 ### Arranque (perfil `local`, H2 en memoria + Flyway)
 
@@ -21,26 +21,28 @@ Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
 ./mvnw spring-boot:run
 ```
 
-- App / UI demo: http://localhost:8080/ (login) → http://localhost:8080/app.html  
-- Health: http://localhost:8080/actuator/health  
-- Swagger UI: http://localhost:8080/swagger-ui.html  
+| Recurso | URL |
+|---------|-----|
+| UI login | http://localhost:8080/ |
+| UI catálogo | http://localhost:8080/app.html |
+| Health | http://localhost:8080/actuator/health |
+| **Swagger UI** | http://localhost:8080/swagger-ui.html |
+| OpenAPI JSON | http://localhost:8080/v3/api-docs |
 
-El perfil por defecto es `local` (H2). PostgreSQL se usa en `prod` (deploy).
-
-Variables de entorno de ejemplo: ver `.env.example`.
+Perfil por defecto: `local` (H2). PostgreSQL en `prod` (deploy). Variables de ejemplo: `.env.example`.
 
 ---
 
 ## Credenciales seed
 
-Usuarios sembrados al arranque si no existen (`UserDataSeeder`). Passwords configurables vía env (`SEED_USER_PASSWORD`, `SEED_ADMIN_PASSWORD`); defaults de demo:
+Usuarios sembrados al arranque si no existen (`UserDataSeeder`). Overrides: `SEED_USER_PASSWORD`, `SEED_ADMIN_PASSWORD`.
 
 | Username | Password | Roles |
 |----------|----------|-------|
 | `user` | `user123` | USER |
 | `admin` | `admin123` | USER, ADMIN |
 
-Solo para demo local. En prod, cambiar secretos JWT y passwords seed.
+Solo para demo. En prod cambiar `JWT_SECRET` y passwords seed.
 
 ### Login (curl)
 
@@ -52,37 +54,22 @@ curl -s -X POST http://localhost:8080/api/v1/auth/login \
 
 Respuesta: `{ "accessToken", "tokenType": "Bearer", "expiresIn", "roles" }`.
 
-### Endpoint protegido
+### Recursos (curl)
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"admin123"}' | jq -r .accessToken)
+  -d '{"username":"user","password":"user123"}' | jq -r .accessToken)
 
-curl -s http://localhost:8080/api/v1/auth/me \
-  -H "Authorization: Bearer $TOKEN"
-```
-
-Sin token → `401 Unauthorized`.
-
-### Recursos SWAPI (curl)
-
-```bash
-# Listado paginado + filtro por nombre (búsqueda remota SWAPI `search`)
 curl -s "http://localhost:8080/api/v1/people?page=1&limit=5&name=sky" \
   -H "Authorization: Bearer $TOKEN"
 
-# Detalle por id
 curl -s http://localhost:8080/api/v1/people/1 \
-  -H "Authorization: Bearer $TOKEN"
-
-# Films aceptan `title` o `name` (title tiene prioridad)
-curl -s "http://localhost:8080/api/v1/films?title=hope" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-Respuesta de listado: `{ "content", "page", "limit", "total", "hasNext" }`.  
-`limit` trunca la página actual (SWAPI entrega de a ~10). El filtro `name`/`title` se reenvía a SWAPI como `search` (no es filtro local).
+Listado: `{ "content", "page", "limit", "total", "hasNext" }`.  
+Filtro `name`/`title` → query remoto en SWAPI (`name` o `title`). Sin token → `401`.
 
 ---
 
@@ -90,40 +77,42 @@ Respuesta de listado: `{ "content", "page", "limit", "total", "hasNext" }`.
 
 Base: `/api/v1`.
 
-| Método | Path | Auth | Estado |
-|--------|------|------|--------|
-| POST | `/api/v1/auth/login` | Público | Disponible |
-| GET | `/api/v1/auth/me` | JWT | Disponible |
-| GET | `/api/v1/people` | JWT + USER | Disponible (`page`, `limit`, `name`) |
-| GET | `/api/v1/people/{id}` | JWT + USER | Disponible |
-| GET | `/api/v1/films` | JWT + USER | Disponible (`page`, `limit`, `name`/`title`) |
-| GET | `/api/v1/films/{id}` | JWT + USER | Disponible |
-| GET | `/api/v1/starships` | JWT + USER | Disponible (`page`, `limit`, `name`) |
-| GET | `/api/v1/starships/{id}` | JWT + USER | Disponible |
-| GET | `/api/v1/vehicles` | JWT + USER | Disponible (`page`, `limit`, `name`) |
-| GET | `/api/v1/vehicles/{id}` | JWT + USER | Disponible |
-| GET | `/actuator/health` | Público | Disponible |
-| GET | `/swagger-ui.html` | Público | Disponible (Bearer JWT) |
+| Método | Path | Auth | Notas |
+|--------|------|------|-------|
+| POST | `/api/v1/auth/login` | Público | Emite JWT |
+| GET | `/api/v1/auth/me` | JWT | Perfil |
+| GET | `/api/v1/people` | JWT + USER | `page`, `limit`, `name` |
+| GET | `/api/v1/people/{id}` | JWT + USER | Detalle |
+| GET | `/api/v1/films` | JWT + USER | `page`, `limit`, `name`/`title` |
+| GET | `/api/v1/films/{id}` | JWT + USER | Detalle |
+| GET | `/api/v1/starships` | JWT + USER | `page`, `limit`, `name` |
+| GET | `/api/v1/starships/{id}` | JWT + USER | Detalle |
+| GET | `/api/v1/vehicles` | JWT + USER | `page`, `limit`, `name` |
+| GET | `/api/v1/vehicles/{id}` | JWT + USER | Detalle |
+| GET | `/actuator/health` | Público | Liveness |
+| GET | `/swagger-ui.html` | Público | OpenAPI + Authorize Bearer |
 
 ---
 
 ## Decisiones
 
-Cada fila resume una decisión cerrada del plan (ADR-style: Decision / Why).
+Cada fila resume una decisión cerrada (ADR-style: Decision / Why).
 
 | Decisión | Por qué |
 |----------|---------|
-| **REST API + UI demo mínima con look Star Wars** | El brief pide REST; la UI demuestra auth + listados; el estilo SW ancla el dominio sin convertir el frontend en el foco. |
-| **JWT Bearer + Spring Security + roles; seed al startup; sin registro público** | Stack a demostrar; setup reproducible para el evaluador; menor superficie. |
-| **Cliente HTTP vivo a SWAPI + caché Caffeine (TTL corto); no persistir catálogo** | SWAPI es la fuente de verdad; evita sync/ETL; Caffeine mitiga latencia. |
-| **Paginación: forward de `page`/`limit` SWAPI; shape normalizado** | Sin store local no hay Pageable JPA; contrato transparente. |
-| **PostgreSQL solo para usuarios/auth + Flyway** | Solo se necesita identidad/roles; el resto es proxy a SWAPI. |
-| **OpenAPI/Swagger obligatorio; README en español; código en inglés** | Contrato vivo + README alineado al idioma del challenge. |
-| **Maven + Java 21 + Spring Boot MVC en capas clásicas** | Stack del brief; packages por capa (`controller`/`service`/`model`/…) más legibles que por feature para este tamaño. |
-| **Sonar en CI (plus); deploy Render/Fly; Docker opcional** | Calidad visible y path de entrega sin bloquear el MVP. |
-| **Desarrollo con Cursor + metodología SDD (plan → fases → ejecución)** | Trazabilidad de alcance y entregas incrementales con DoD por fase. El README documenta cómo se usó Cursor. |
-| **Autoría Git = GitHub `duartegaston` (regla dura)** | El historial debe atribuirse al candidato; nunca identidad Cursor/bot/agente. |
-| **UI demo con estética Star Wars (tema, tipografía, colores, atmósfera)** | Refuerza el dominio SWAPI; no una UI admin genérica. |
+| **REST API + UI demo mínima con look Star Wars** | El brief pide REST; la UI demuestra auth + listados; el estilo SW ancla el dominio. |
+| **JWT Bearer + Spring Security + roles; seed al startup; sin registro público** | Stack a demostrar; setup reproducible; menor superficie. |
+| **Sin SDK Star Wars; Spring `RestClient` → https://www.swapi.tech + timeouts + Caffeine** | SWAPI es la fuente de verdad; RestClient nativo del stack MVC; Caffeine mitiga latencia; no dependencias de terceros de dominio SW. |
+| **Controllers sin `ResponseEntity` envolviendo cada respuesta** | Controllers thin: el tipo de retorno + `@ResponseStatus` / defaults MVC fijan el status; errores vía `@RestControllerAdvice`. `ResponseEntity` solo si hiciera falta variar status/headers por rama. |
+| **Paginación normalizada (`PageResponse`)** | Contrato estable hacia la UI; page/limit reenviados a SWAPI. |
+| **PostgreSQL solo para `UserEntity` (auth) + Flyway** | Solo identidad/roles; el catálogo no se persiste. |
+| **OpenAPI obligatorio; README ES; código EN; Javadoc ES breve** | Contrato vivo + README alineado al challenge. |
+| **Maven + Java 21 + capas clásicas** | Packages `config`/`controller`/`service`/`model`/`repository`/`security`/`client`/`exception`. |
+| **SonarCloud vía GitHub Action (plus)** | Calidad visible cuando hay `SONAR_TOKEN`; no bloquea el MVP. |
+| **Deploy Render/Fly (Fase 7); Docker opcional** | Path de entrega sin bloquear docs. |
+| **Cursor + SDD (plan → fases → ejecución)** | Alcance controlado y entregas incrementales. |
+| **Autoría Git = `duartegaston` (regla dura)** | Historial del candidato; nunca identidad Cursor/bot. |
+| **UI demo estética Star Wars** | Dominio reconocible; no admin genérico. |
 
 ### ADR (Decision / Why)
 
@@ -135,49 +124,51 @@ Cada fila resume una decisión cerrada del plan (ADR-style: Decision / Why).
 - **Decision:** JWT Bearer + Spring Security + roles; seed al startup; sin registro público.
 - **Why:** Stack a demostrar; setup reproducible; menor superficie.
 
-#### ADR-03 — Integración SWAPI
-- **Decision:** Cliente HTTP vivo + caché Caffeine corta; no persistir catálogo.
-- **Why:** Fuente de verdad externa; evita sync/ETL.
+#### ADR-03 — Integración SWAPI (RestClient, sin SDK)
+- **Decision:** No se usa librería/SDK específica de Star Wars. El acceso es **Spring `RestClient`** contra **https://www.swapi.tech/api**, con timeouts (`swapi.connect-timeout-ms` / `swapi.read-timeout-ms`) y **caché Caffeine** in-memory (`swapi-lists`, `swapi-details`, TTL configurable). El catálogo **no** se guarda en DB.
+- **Why:** SWAPI es la fuente de verdad; RestClient es el cliente HTTP idiomático en Spring MVC 6; evita dependencias opacas de dominio; Caffeine reduce latencia y presión sobre el origen. Fallos → `SwapiUnavailableException` → HTTP **502**.
 
 #### ADR-04 — Paginación
-- **Decision:** Forward de `page`/`limit` SWAPI; respuesta normalizada.
-- **Why:** Sin store local; cliente de demo simple.
+- **Decision:** Forward de `page`/`limit` a SWAPI; respuesta `PageResponse` normalizada.
+- **Why:** Contrato transparente para la UI de demo.
 
 #### ADR-05 — Persistencia
-- **Decision:** PostgreSQL únicamente para `UserEntity` (auth); schema con Flyway; H2 en `local`/`test`.
-- **Why:** Solo identidad/roles; el resto es proxy. El nombre `UserEntity` evita choque con `User` de Spring Security.
+- **Decision:** PostgreSQL únicamente para `UserEntity` (auth); Flyway; H2 en `local`/`test`.
+- **Why:** Solo identidad/roles. El nombre `UserEntity` evita choque con `User` de Spring Security.
 
-#### ADR-06 — Documentación e idioma
-- **Decision:** OpenAPI obligatorio; README ES; código EN; Javadoc breve en español en clases clave.
-- **Why:** Contrato claro + README alineado al challenge.
+#### ADR-06 — Controllers y `ResponseEntity`
+- **Decision:** Los controllers **devuelven DTOs / records directamente** (p. ej. `LoginResponse`, `PageResponse<SwapiItem>`), no envuelven cada método en `ResponseEntity<>`.
+- **Why:** Mantienen controllers thin: el status HTTP exitoso sale de convenciones MVC (`200` por defecto, o `@ResponseStatus`). Errores de dominio/validación los traduce `GlobalExceptionHandler` (`@RestControllerAdvice`) a `ErrorResponse` con el status correcto (401/404/502/…). Se reservaría `ResponseEntity` para casos que necesiten **variar status o headers por rama** en el mismo método; hoy no hace falta.
 
-#### ADR-07 — Calidad y deploy
-- **Decision:** Sonar en CI como plus; deploy Render/Fly; Docker opcional; Maven/Java 21/Spring Boot MVC en capas clásicas (`config`, `controller`, `service`, `model`, `repository`, `security`, `client`, `exception`).
-- **Why:** Job context, path de entrega visible y estructura familiar para evaluadores.
+#### ADR-07 — Documentación e idioma
+- **Decision:** OpenAPI/Swagger obligatorio; README en español; código en inglés; Javadoc breve en español en clases/métodos clave.
+- **Why:** Un evaluador entiende el sistema con README + swagger-ui.
 
-#### ADR-08 — Metodología Cursor / SDD
-- **Decision:** Desarrollar con Cursor en estilo SDD: generar el plan, partir en fases con DoD, ejecutar fase por fase.
-- **Why:** Alcance controlado, PRs acotados y evidencia del proceso (no solo del resultado).
+#### ADR-08 — Capas, calidad y deploy
+- **Decision:** Capas clásicas; SonarCloud opcional en CI; deploy Render/Fly en Fase 7.
+- **Why:** Estructura familiar; calidad visible sin bloquear el MVP.
 
-#### ADR-09 — Autoría Git
-- **Decision:** Todos los commits se autoran como GitHub user `duartegaston`. Prohibido Cursor bot u otras identidades de agente.
+#### ADR-09 — Metodología Cursor / SDD
+- **Decision:** Desarrollar con Cursor en estilo SDD: plan, fases con DoD, ejecución fase a fase.
+- **Why:** Alcance controlado y evidencia del proceso.
+
+#### ADR-10 — Autoría Git
+- **Decision:** Commits como GitHub user `duartegaston` (`Gaston Duarte <duartegaston07@gmail.com>`). Prohibido Cursor bot / agentes.
 - **Why:** El historial debe reflejar al candidato.
 
-#### ADR-10 — Estética UI demo
-- **Decision:** La UI puede y debe usar estilos inspirados en Star Wars.
-- **Why:** Dominio reconocible sin inflar el alcance de frontend.
+#### ADR-11 — Estética UI demo
+- **Decision:** UI con tipografía, colores y atmósfera Star Wars.
+- **Why:** Dominio reconocible sin inflar el frontend.
 
 ---
 
 ## Metodología: Cursor + SDD
 
-Este proyecto se desarrolla con **Cursor** siguiendo un flujo tipo **SDD (Spec-/Plan-Driven Development)**:
+1. **Plan** — alcance, ADRs y fases.  
+2. **Fases** — checklist + Definition of Done.  
+3. **Ejecución** — una fase a la vez (desde Fase 2, commits directos a `main` salvo pedido de PR).
 
-1. **Plan** — documento vivo con alcance, ADRs, arquitectura y fases (`docs/plan` del workspace de trabajo).
-2. **Fases** — cada fase tiene checklist y Definition of Done (scaffold → security → SWAPI → resources → UI → tests → docs → deploy).
-3. **Ejecución** — una fase a la vez; PRs acotados; sin saltar a negocio antes de que el scaffold compile y arranque.
-
-Cursor se usa como copiloto de implementación sobre ese plan (estructura, código, tests, README), no como autor de los commits.
+Cursor es copiloto de implementación; **no** autor de los commits.
 
 ---
 
@@ -186,41 +177,48 @@ Cursor se usa como copiloto de implementación sobre ese plan (estructura, códi
 ```
 com.conexa.challenge
 ├── config       # Security, OpenAPI, Cache, properties
-├── controller   # Auth + resources REST
+├── controller   # Auth + resources REST (DTOs directos)
 ├── service      # Auth, catalog, people/films/starships/vehicles, seed
-├── client       # SwapiClient, mapper, properties
+├── client       # SwapiClient (RestClient), mapper, properties
 ├── security     # JWT filter, JwtService, UserDetails
 ├── model        # UserEntity, Role + dto/
 ├── repository   # UserRepository
-└── exception    # Handler + excepciones de dominio
+└── exception    # @RestControllerAdvice + excepciones de dominio
 ```
 
-UI estática (Fase 4): `src/main/resources/static/`.
+UI estática: `src/main/resources/static/`.
 
-Flujo: HTTP → JWT filter → Controller → Service → SwapiClient/UserRepository → DTO → Response.
+Flujo: HTTP → JWT filter → Controller → Service → SwapiClient / UserRepository → DTO → respuesta.
 
 ---
 
 ## SWAPI + caché
 
-- Cliente: `RestClient` (`SwapiClient`) con timeouts `swapi.connect-timeout-ms` / `swapi.read-timeout-ms`.
-- Caché: Caffeine in-memory (`swapi-lists`, `swapi-details`), TTL `cache.swapi.ttl-minutes` (default 5), max-size configurable.
-- No se persiste el catálogo Star Wars en DB (solo usuarios).
-- Fallo de SWAPI → `SwapiUnavailableException` → HTTP **502 Bad Gateway**.
-- Controllers REST: `/api/v1/{people|films|starships|vehicles}` (+ `/{id}`), JWT + rol `USER`.
+- **Origen:** https://www.swapi.tech/api (configurable `swapi.base-url`)  
+- **Cliente:** Spring `RestClient` (sin SDK Star Wars)  
+- **Timeouts:** `swapi.connect-timeout-ms`, `swapi.read-timeout-ms`  
+- **Caché:** Caffeine `swapi-lists` / `swapi-details` (TTL `cache.swapi.ttl-minutes`, default 5)  
+- **Errores:** origen caído → **502 Bad Gateway**  
+- Tests: WireMock / mocks — **nunca** red real a SWAPI en CI  
 
 ---
 
 ## UI demo (look Star Wars)
 
-Estática servida por Spring (`src/main/resources/static/`):
+1. http://localhost:8080/ — login (JWT en `sessionStorage`)  
+2. http://localhost:8080/app.html — tabs, filtro, paginación, detalle  
+3. 401 → vuelve al login  
 
-1. Abrir http://localhost:8080/  
-2. Login con seed (`user` / `user123`) — el JWT queda en `sessionStorage`  
-3. Catálogo en `/app.html`: tabs People / Films / Starships / Vehicles, filtro, paginación y detalle al click  
-4. Sin token o 401 → vuelve al login  
+Tipografía Orbitron / Exo 2; fondo espacial; acentos oro crawl + azul sable.
 
-Atmósfera: fondo espacial, tipografía Orbitron/Exo 2, acentos oro crawl + azul sable. No es un admin genérico.
+---
+
+## OpenAPI / Swagger
+
+- UI: http://localhost:8080/swagger-ui.html  
+- Spec: http://localhost:8080/v3/api-docs  
+- Security scheme `bearerAuth` (JWT). Login es público; recursos llevan tag + `@SecurityRequirement`.  
+- Flujo sugerido: `POST /api/v1/auth/login` → Authorize con el `accessToken` → probar `GET /api/v1/people`.
 
 ---
 
@@ -230,35 +228,56 @@ Atmósfera: fondo espacial, tipografía Orbitron/Exo 2, acentos oro crawl + azul
 ./mvnw clean test
 ```
 
-Suite consolidada (Fase 5):
-
 | Tipo | Ejemplos |
 |------|----------|
 | Unit | `JwtServiceTest`, `AuthServiceTest`, `PeopleServiceTest`, `CatalogServiceTest`, `SwapiMapperTest` |
 | Slice | `@WebMvcTest` `PeopleControllerWebMvcTest`; `@DataJpaTest` `UserRepositoryTest` |
-| Integration | `@SpringBootTest` + H2: `AuthIntegrationTest`, `AuthPeopleIntegrationTest` (login→JWT→people), `SwapiClientTest` (WireMock), resource tests |
-
-Sin red real a SWAPI en CI. Cobertura mínima: auth, un resource (people) y cliente SWAPI.
+| Integration | `@SpringBootTest` + H2: auth, login→JWT→people, WireMock SWAPI, resources |
 
 ---
 
-## Calidad / Sonar
+## Calidad / SonarCloud
 
-Pendiente — Fase 6 (plus).
+Hay workflow CI en `.github/workflows/ci.yml`:
+
+1. Job **test** — siempre corre `./mvnw clean test`.  
+2. Job **sonar** — solo si existe el secret **`SONAR_TOKEN`** en el repo.
+
+### Cómo habilitar (Gaston)
+
+1. Crear cuenta / org en [SonarCloud](https://sonarcloud.io) e importar `duartegaston/challenge-conexa`.  
+2. Generar un token y añadirlo como secret de GitHub: `Settings → Secrets → Actions → SONAR_TOKEN`.  
+3. Opcional: variables `SONAR_ORGANIZATION` y `SONAR_PROJECT_KEY` (defaults en el workflow / `sonar-project.properties`).  
+4. Re-push a `main` o re-run del workflow.
+
+**Estado actual:** Action + propiedades listas; **análisis bloqueado** hasta que exista `SONAR_TOKEN` (no se inventan secretos en el repo).
+
+Análisis local (con token exportado):
+
+```bash
+export SONAR_TOKEN=...   # no commitear
+./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+  -Dsonar.organization=duartegaston \
+  -Dsonar.projectKey=duartegaston_challenge-conexa \
+  -Dsonar.host.url=https://sonarcloud.io
+```
 
 ---
 
 ## Deploy
 
-Pendiente — Fase 7 (Render o Fly.io).
+Pendiente — **Fase 7** (Render o Fly.io + Postgres managed + env `JWT_SECRET` / `DATABASE_*` / `swapi.base-url`).  
+Limitaciones típicas del free tier (cold start, sleep de DB) se documentarán con la URL pública.
 
 ---
 
 ## Autoría Git
 
-**Regla dura:** todos los commits de este repo se autoran como GitHub user **`duartegaston`** (`Gaston Duarte <duartegaston07@gmail.com>`). No se usan identidades Cursor, cloud agent ni bots.
+**Regla dura:** commits como **`Gaston Duarte <duartegaston07@gmail.com>`** (`duartegaston`). Sin identidades Cursor/bot.
 
-Verificar: `git log -1 --format='%an <%ae>'`.
+```bash
+git log -1 --format='%an <%ae>'
+```
 
 ---
 

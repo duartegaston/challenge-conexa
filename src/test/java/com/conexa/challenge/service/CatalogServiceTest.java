@@ -37,7 +37,7 @@ class CatalogServiceTest {
                 82,
                 true);
 
-        when(swapiClient.getList(SwapiResource.PEOPLE, 1, "luke")).thenReturn(fromClient);
+        when(swapiClient.getList(SwapiResource.PEOPLE, 1, 2, "luke")).thenReturn(fromClient);
 
         PageResponse<SwapiItem> result = catalogService.list(SwapiResource.PEOPLE, 1, 2, "luke");
 
@@ -46,7 +46,7 @@ class CatalogServiceTest {
         assertThat(result.content().getFirst().name()).isEqualTo("Luke Skywalker");
         assertThat(result.total()).isEqualTo(82);
         assertThat(result.hasNext()).isTrue();
-        verify(swapiClient).getList(SwapiResource.PEOPLE, 1, "luke");
+        verify(swapiClient).getList(SwapiResource.PEOPLE, 1, 2, "luke");
     }
 
     @Test

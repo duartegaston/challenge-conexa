@@ -34,7 +34,7 @@ springdoc:
     path: /swagger-ui.html
 
 swapi:
-  base-url: https://swapi.dev/api
+  base-url: https://www.swapi.tech/api
   connect-timeout-ms: 3000
   read-timeout-ms: 5000
 
