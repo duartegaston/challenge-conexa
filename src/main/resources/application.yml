@@ -1,0 +1,105 @@
+spring:
+  application:
+    name: challenge-conexa
+  profiles:
+    default: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when_authorized
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+swapi:
+  base-url: https://swapi.dev/api
+  connect-timeout-ms: 3000
+  read-timeout-ms: 5000
+
+cache:
+  swapi:
+    ttl-minutes: 5
+    max-size: 300
+
+# Fase 0: JWT y seed se configuran en Fase 1.
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:change-me-phase0-not-for-prod}
+      expiration-minutes: 60
+
+---
+# Perfil local: H2 en memoria para arrancar sin PostgreSQL (scaffold Fase 0).
+spring:
+  config:
+    activate:
+      on-profile: local
+  datasource:
+    url: jdbc:h2:mem:challenge;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: update
+logging:
+  level:
+    root: INFO
+    com.conexa.challenge: DEBUG
+
+---
+# Perfil prod: PostgreSQL vía variables de entorno.
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${DATABASE_URL}
+    username: ${DATABASE_USERNAME}
+    password: ${DATABASE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+
+logging:
+  level:
+    root: INFO
+    com.conexa.challenge: INFO
+
+---
+# Perfil test: H2 para tests.
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: jdbc:h2:mem:challenge_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
