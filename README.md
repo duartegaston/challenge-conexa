@@ -2,7 +2,7 @@
 
 API REST en **Java 21 / Spring Boot** que integra [SWAPI](https://swapi.dev/), con autenticación JWT + roles, UI de demo con estética Star Wars, OpenAPI, tests y deploy en host gratuito.
 
-> **Estado actual:** Fase 2 — SWAPI client + caché Caffeine. Auth JWT listo. Controllers de recursos y UI pendientes (Fases 3–4).
+> **Estado actual:** Fase 3 — Resources REST (people/films/starships/vehicles). UI demo pendiente (Fase 4).
 
 Repo: https://github.com/duartegaston/challenge-conexa  
 Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
@@ -65,6 +65,25 @@ curl -s http://localhost:8080/api/v1/auth/me \
 
 Sin token → `401 Unauthorized`.
 
+### Recursos SWAPI (curl)
+
+```bash
+# Listado paginado + filtro por nombre (búsqueda remota SWAPI `search`)
+curl -s "http://localhost:8080/api/v1/people?page=1&limit=5&name=sky" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Detalle por id
+curl -s http://localhost:8080/api/v1/people/1 \
+  -H "Authorization: Bearer $TOKEN"
+
+# Films aceptan `title` o `name` (title tiene prioridad)
+curl -s "http://localhost:8080/api/v1/films?title=hope" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Respuesta de listado: `{ "content", "page", "limit", "total", "hasNext" }`.  
+`limit` trunca la página actual (SWAPI entrega de a ~10). El filtro `name`/`title` se reenvía a SWAPI como `search` (no es filtro local).
+
 ---
 
 ## Endpoints principales
@@ -73,14 +92,18 @@ Base: `/api/v1`.
 
 | Método | Path | Auth | Estado |
 |--------|------|------|--------|
-| POST | `/api/v1/auth/login` | Público | Disponible (Fase 1) |
-| GET | `/api/v1/auth/me` | JWT | Disponible (Fase 1) |
-| GET | `/api/v1/people` … | JWT + USER | Pendiente Fase 3 |
-| GET | `/api/v1/films` … | JWT + USER | Pendiente Fase 3 |
-| GET | `/api/v1/starships` … | JWT + USER | Pendiente Fase 3 |
-| GET | `/api/v1/vehicles` … | JWT + USER | Pendiente Fase 3 |
+| POST | `/api/v1/auth/login` | Público | Disponible |
+| GET | `/api/v1/auth/me` | JWT | Disponible |
+| GET | `/api/v1/people` | JWT + USER | Disponible (`page`, `limit`, `name`) |
+| GET | `/api/v1/people/{id}` | JWT + USER | Disponible |
+| GET | `/api/v1/films` | JWT + USER | Disponible (`page`, `limit`, `name`/`title`) |
+| GET | `/api/v1/films/{id}` | JWT + USER | Disponible |
+| GET | `/api/v1/starships` | JWT + USER | Disponible (`page`, `limit`, `name`) |
+| GET | `/api/v1/starships/{id}` | JWT + USER | Disponible |
+| GET | `/api/v1/vehicles` | JWT + USER | Disponible (`page`, `limit`, `name`) |
+| GET | `/api/v1/vehicles/{id}` | JWT + USER | Disponible |
 | GET | `/actuator/health` | Público | Disponible |
-| GET | `/swagger-ui.html` | Público | Disponible |
+| GET | `/swagger-ui.html` | Público | Disponible (Bearer JWT) |
 
 ---
 
@@ -181,7 +204,7 @@ Flujo: HTTP → JWT filter → Controller → Service → SwapiClient/UserReposi
 - Caché: Caffeine in-memory (`swapi-lists`, `swapi-details`), TTL `cache.swapi.ttl-minutes` (default 5), max-size configurable.
 - No se persiste el catálogo Star Wars en DB (solo usuarios).
 - Fallo de SWAPI → `SwapiUnavailableException` → HTTP **502 Bad Gateway**.
-- Controllers REST de people/films/starships/vehicles: Fase 3.
+- Controllers REST: `/api/v1/{people|films|starships|vehicles}` (+ `/{id}`), JWT + rol `USER`.
 
 ---
 
@@ -198,7 +221,8 @@ Pendiente — Fase 4. Login + listados paginados/filtrables con tipografía, col
 ```
 
 - Fase 1: login ok/fail; endpoint protegido `401`/`200` (`AuthIntegrationTest`).
-- Fase 2: WireMock — listado OK, cache hit (1 sola llamada HTTP), SWAPI 5xx → excepción; handler → 502 (`SwapiClientTest`, `GlobalExceptionHandlerTest`).
+- Fase 2: WireMock — listado OK, cache hit, SWAPI 5xx → 502 (`SwapiClientTest`, `GlobalExceptionHandlerTest`).
+- Fase 3: resources con `SwapiClient` mockeado — list/detail/filtro, 401 sin token, 404/502 (`PeopleResourceTest` y siblings).
 
 ---
 

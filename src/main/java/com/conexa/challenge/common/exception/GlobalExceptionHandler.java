@@ -2,6 +2,7 @@ package com.conexa.challenge.common.exception;
 
 import com.conexa.challenge.auth.service.InvalidCredentialsException;
 import com.conexa.challenge.common.dto.ErrorResponse;
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -35,6 +36,16 @@ public class GlobalExceptionHandler {
         String message = ex.getBindingResult().getFieldErrors().stream()
                 .findFirst()
                 .map(FieldError::getDefaultMessage)
+                .orElse("Validation failed");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST.value(), message));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+        String message = ex.getConstraintViolations().stream()
+                .findFirst()
+                .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
                 .orElse("Validation failed");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.of(HttpStatus.BAD_REQUEST.value(), message));
