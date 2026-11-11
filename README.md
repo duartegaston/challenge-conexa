@@ -2,7 +2,7 @@
 
 API REST en **Java 21 / Spring Boot** que integra [SWAPI](https://swapi.dev/), con autenticación JWT + roles, UI de demo con estética Star Wars, OpenAPI, tests y deploy en host gratuito.
 
-> **Estado actual:** Fase 1 — Security + User store. Login JWT y usuarios seed listos. Cliente SWAPI y UI pendientes.
+> **Estado actual:** Fase 2 — SWAPI client + caché Caffeine. Auth JWT listo. Controllers de recursos y UI pendientes (Fases 3–4).
 
 Repo: https://github.com/duartegaston/challenge-conexa  
 Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
@@ -177,7 +177,11 @@ Flujo: HTTP → JWT filter → Controller → Service → SwapiClient/UserReposi
 
 ## SWAPI + caché
 
-Pendiente — Fase 2 (`RestClient` + Caffeine, TTL configurable).
+- Cliente: `RestClient` (`SwapiClient`) con timeouts `swapi.connect-timeout-ms` / `swapi.read-timeout-ms`.
+- Caché: Caffeine in-memory (`swapi-lists`, `swapi-details`), TTL `cache.swapi.ttl-minutes` (default 5), max-size configurable.
+- No se persiste el catálogo Star Wars en DB (solo usuarios).
+- Fallo de SWAPI → `SwapiUnavailableException` → HTTP **502 Bad Gateway**.
+- Controllers REST de people/films/starships/vehicles: Fase 3.
 
 ---
 
@@ -193,7 +197,8 @@ Pendiente — Fase 4. Login + listados paginados/filtrables con tipografía, col
 ./mvnw test
 ```
 
-Fase 1: login ok/fail; endpoint protegido `401` sin token y `200` con JWT (`AuthIntegrationTest`).
+- Fase 1: login ok/fail; endpoint protegido `401`/`200` (`AuthIntegrationTest`).
+- Fase 2: WireMock — listado OK, cache hit (1 sola llamada HTTP), SWAPI 5xx → excepción; handler → 502 (`SwapiClientTest`, `GlobalExceptionHandlerTest`).
 
 ---
 
