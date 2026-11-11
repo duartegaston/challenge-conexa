@@ -119,7 +119,7 @@ Cada fila resume una decisión cerrada del plan (ADR-style: Decision / Why).
 | **Paginación: forward de `page`/`limit` SWAPI; shape normalizado** | Sin store local no hay Pageable JPA; contrato transparente. |
 | **PostgreSQL solo para usuarios/auth + Flyway** | Solo se necesita identidad/roles; el resto es proxy a SWAPI. |
 | **OpenAPI/Swagger obligatorio; README en español; código en inglés** | Contrato vivo + README alineado al idioma del challenge. |
-| **Maven + Java 21 + Spring Boot MVC en capas** | Stack del brief; patrón layered a demostrar. |
+| **Maven + Java 21 + Spring Boot MVC en capas clásicas** | Stack del brief; packages por capa (`controller`/`service`/`model`/…) más legibles que por feature para este tamaño. |
 | **Sonar en CI (plus); deploy Render/Fly; Docker opcional** | Calidad visible y path de entrega sin bloquear el MVP. |
 | **Desarrollo con Cursor + metodología SDD (plan → fases → ejecución)** | Trazabilidad de alcance y entregas incrementales con DoD por fase. El README documenta cómo se usó Cursor. |
 | **Autoría Git = GitHub `duartegaston` (regla dura)** | El historial debe atribuirse al candidato; nunca identidad Cursor/bot/agente. |
@@ -144,16 +144,16 @@ Cada fila resume una decisión cerrada del plan (ADR-style: Decision / Why).
 - **Why:** Sin store local; cliente de demo simple.
 
 #### ADR-05 — Persistencia
-- **Decision:** PostgreSQL únicamente para `User` (auth); schema con Flyway; H2 en `local`/`test`.
-- **Why:** Solo identidad/roles; el resto es proxy.
+- **Decision:** PostgreSQL únicamente para `UserEntity` (auth); schema con Flyway; H2 en `local`/`test`.
+- **Why:** Solo identidad/roles; el resto es proxy. El nombre `UserEntity` evita choque con `User` de Spring Security.
 
 #### ADR-06 — Documentación e idioma
-- **Decision:** OpenAPI obligatorio; README ES; código EN.
+- **Decision:** OpenAPI obligatorio; README ES; código EN; Javadoc breve en español en clases clave.
 - **Why:** Contrato claro + README alineado al challenge.
 
 #### ADR-07 — Calidad y deploy
-- **Decision:** Sonar en CI como plus; deploy Render/Fly; Docker opcional; Maven/Java 21/Spring Boot MVC.
-- **Why:** Job context y path de entrega visible.
+- **Decision:** Sonar en CI como plus; deploy Render/Fly; Docker opcional; Maven/Java 21/Spring Boot MVC en capas clásicas (`config`, `controller`, `service`, `model`, `repository`, `security`, `client`, `exception`).
+- **Why:** Job context, path de entrega visible y estructura familiar para evaluadores.
 
 #### ADR-08 — Metodología Cursor / SDD
 - **Decision:** Desarrollar con Cursor en estilo SDD: generar el plan, partir en fases con DoD, ejecutar fase por fase.
@@ -185,14 +185,17 @@ Cursor se usa como copiloto de implementación sobre ese plan (estructura, códi
 
 ```
 com.conexa.challenge
-├── config          # Security, OpenAPI, Cache, seed
-├── auth            # login, JWT, UserDetails
-├── user            # entidad User, repository, seed
-├── swapi           # client HTTP, cache, mappers
-├── people | films | starships | vehicles
-├── common          # exception, dto, validation
-└── web             # UI demo (estética Star Wars)
+├── config       # Security, OpenAPI, Cache, properties
+├── controller   # Auth + resources REST
+├── service      # Auth, catalog, people/films/starships/vehicles, seed
+├── client       # SwapiClient, mapper, properties
+├── security     # JWT filter, JwtService, UserDetails
+├── model        # UserEntity, Role + dto/
+├── repository   # UserRepository
+└── exception    # Handler + excepciones de dominio
 ```
+
+UI estática (Fase 4): `src/main/resources/static/`.
 
 Flujo: HTTP → JWT filter → Controller → Service → SwapiClient/UserRepository → DTO → Response.
 

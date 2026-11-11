@@ -1,6 +1,6 @@
 package com.conexa.challenge.config;
 
-import com.conexa.challenge.swapi.SwapiProperties;
+import com.conexa.challenge.client.SwapiProperties;
 import java.time.Duration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -8,8 +8,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
+/**
+ * Bean RestClient apuntando a SWAPI con timeouts configurables.
+ */
 @Configuration
-@EnableConfigurationProperties(SwapiProperties.class)
+@EnableConfigurationProperties({SwapiProperties.class, JwtProperties.class, SeedProperties.class})
 public class RestClientConfig {
 
     @Bean

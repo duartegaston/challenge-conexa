@@ -9,6 +9,9 @@ import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+/**
+ * Caché Caffeine para listados y detalles SWAPI.
+ */
 @Configuration
 @EnableCaching
 @EnableConfigurationProperties(CacheProperties.class)
