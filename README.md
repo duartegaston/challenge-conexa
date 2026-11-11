@@ -227,12 +227,18 @@ Atmósfera: fondo espacial, tipografía Orbitron/Exo 2, acentos oro crawl + azul
 ## Tests
 
 ```bash
-./mvnw test
+./mvnw clean test
 ```
 
-- Fase 1: login ok/fail; endpoint protegido `401`/`200` (`AuthIntegrationTest`).
-- Fase 2: WireMock — listado OK, cache hit, SWAPI 5xx → 502 (`SwapiClientTest`, `GlobalExceptionHandlerTest`).
-- Fase 3: resources con `SwapiClient` mockeado — list/detail/filtro, 401 sin token, 404/502 (`PeopleResourceTest` y siblings).
+Suite consolidada (Fase 5):
+
+| Tipo | Ejemplos |
+|------|----------|
+| Unit | `JwtServiceTest`, `AuthServiceTest`, `PeopleServiceTest`, `CatalogServiceTest`, `SwapiMapperTest` |
+| Slice | `@WebMvcTest` `PeopleControllerWebMvcTest`; `@DataJpaTest` `UserRepositoryTest` |
+| Integration | `@SpringBootTest` + H2: `AuthIntegrationTest`, `AuthPeopleIntegrationTest` (login→JWT→people), `SwapiClientTest` (WireMock), resource tests |
+
+Sin red real a SWAPI en CI. Cobertura mínima: auth, un resource (people) y cliente SWAPI.
 
 ---
 
