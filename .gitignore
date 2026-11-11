@@ -37,3 +37,7 @@ build/
 application-local.yml
 **/application-local.yml
 *.log
+/data/
+*.db
+*.mv.db
+*.trace.db

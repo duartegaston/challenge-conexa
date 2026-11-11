@@ -2,7 +2,7 @@
 
 API REST en **Java 21 / Spring Boot** que integra [SWAPI](https://www.swapi.tech/) con autenticación JWT + roles, UI de demo con estética Star Wars, OpenAPI, tests y path de deploy en host gratuito.
 
-> **Estado actual:** Fase 6 — docs + OpenAPI + Sonar (CI listo; token SonarCloud pendiente de configurar). Deploy vivo = Fase 7.
+> **Estado actual:** Fase 7 — deploy Fly.io (Docker + H2 file). URL pública: pendiente de `fly deploy` con `FLY_API_TOKEN` / cuenta de Gaston. SonarCloud sigue opcional (`SONAR_TOKEN`).
 
 Repo: https://github.com/duartegaston/challenge-conexa  
 Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
@@ -29,7 +29,7 @@ Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
 | **Swagger UI** | http://localhost:8080/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |
 
-Perfil por defecto: `local` (H2). PostgreSQL en `prod` (deploy). Variables de ejemplo: `.env.example`.
+Perfil por defecto: `local` (H2 en memoria). Prod (Fly) usa **H2 file** en `/data` — ver [Deploy](#deploy) y ADR-05. Variables: `.env.example`.
 
 ---
 
@@ -105,11 +105,11 @@ Cada fila resume una decisión cerrada (ADR-style: Decision / Why).
 | **Sin SDK Star Wars; Spring `RestClient` → https://www.swapi.tech + timeouts + Caffeine** | SWAPI es la fuente de verdad; RestClient nativo del stack MVC; Caffeine mitiga latencia; no dependencias de terceros de dominio SW. |
 | **Controllers sin `ResponseEntity` envolviendo cada respuesta** | Controllers thin: el tipo de retorno + `@ResponseStatus` / defaults MVC fijan el status; errores vía `@RestControllerAdvice`. `ResponseEntity` solo si hiciera falta variar status/headers por rama. |
 | **Paginación normalizada (`PageResponse`)** | Contrato estable hacia la UI; page/limit reenviados a SWAPI. |
-| **PostgreSQL solo para `UserEntity` (auth) + Flyway** | Solo identidad/roles; el catálogo no se persiste. |
+| **H2 en prod (Fly) solo para `UserEntity` (auth/seed) + Flyway** | El challenge no exige persistir SWAPI; free deploy → sin Postgres managed de pago. |
 | **OpenAPI obligatorio; README ES; código EN; Javadoc ES breve** | Contrato vivo + README alineado al challenge. |
 | **Maven + Java 21 + capas clásicas** | Packages `config`/`controller`/`service`/`model`/`repository`/`security`/`client`/`exception`. |
 | **SonarCloud vía GitHub Action (plus)** | Calidad visible cuando hay `SONAR_TOKEN`; no bloquea el MVP. |
-| **Deploy Render/Fly (Fase 7); Docker opcional** | Path de entrega sin bloquear docs. |
+| **Deploy Fly.io + Docker multi-stage (Java 21)** | Free/hobby path; `JWT_SECRET` vía Fly secrets. |
 | **Cursor + SDD (plan → fases → ejecución)** | Alcance controlado y entregas incrementales. |
 | **Autoría Git = `duartegaston` (regla dura)** | Historial del candidato; nunca identidad Cursor/bot. |
 | **UI demo estética Star Wars** | Dominio reconocible; no admin genérico. |
@@ -132,9 +132,9 @@ Cada fila resume una decisión cerrada (ADR-style: Decision / Why).
 - **Decision:** Forward de `page`/`limit` a SWAPI; respuesta `PageResponse` normalizada.
 - **Why:** Contrato transparente para la UI de demo.
 
-#### ADR-05 — Persistencia
-- **Decision:** PostgreSQL únicamente para `UserEntity` (auth); Flyway; H2 en `local`/`test`.
-- **Why:** Solo identidad/roles. El nombre `UserEntity` evita choque con `User` de Spring Security.
+#### ADR-05 — Persistencia (H2 en prod)
+- **Decision:** **H2** para `UserEntity` (auth/seed) en **local, test y prod**. En prod (Fly): JDBC file `jdbc:h2:file:/data/challenge` (`H2_FILE_PATH`). Flyway en todos los perfiles. El driver PostgreSQL puede quedar en el POM por compatibilidad local opcional, pero **prod en Fly no usa Postgres managed** (ni Neon ni Fly Postgres de pago).
+- **Why:** El challenge **no requiere persistir el catálogo SWAPI** (solo identidad). Un deploy gratuito no justifica Postgres managed. Sin volumen Fly montado en `/data`, el archivo H2 vive en el disco **efímero** del contenedor (se pierde en reinicios/redeploys; el seed recrea `user`/`admin` si la DB está vacía). Con volumen opcional (`fly volumes create` + `[[mounts]]` en `fly.toml`) los users sobreviven reinicios.
 
 #### ADR-06 — Controllers y `ResponseEntity`
 - **Decision:** Los controllers **devuelven DTOs / records directamente** (p. ej. `LoginResponse`, `PageResponse<SwapiItem>`), no envuelven cada método en `ResponseEntity<>`.
@@ -145,8 +145,8 @@ Cada fila resume una decisión cerrada (ADR-style: Decision / Why).
 - **Why:** Un evaluador entiende el sistema con README + swagger-ui.
 
 #### ADR-08 — Capas, calidad y deploy
-- **Decision:** Capas clásicas; SonarCloud opcional en CI; deploy Render/Fly en Fase 7.
-- **Why:** Estructura familiar; calidad visible sin bloquear el MVP.
+- **Decision:** Capas clásicas; SonarCloud opcional en CI; deploy en **Fly.io** con `Dockerfile` multi-stage y `fly.toml` (`internal_port` 8080).
+- **Why:** Estructura familiar; calidad visible; host gratuito/hobby alineado al challenge.
 
 #### ADR-09 — Metodología Cursor / SDD
 - **Decision:** Desarrollar con Cursor en estilo SDD: plan, fases con DoD, ejecución fase a fase.
@@ -264,10 +264,87 @@ export SONAR_TOKEN=...   # no commitear
 
 ---
 
-## Deploy
+## Deploy (Fly.io)
 
-Pendiente — **Fase 7** (Render o Fly.io + Postgres managed + env `JWT_SECRET` / `DATABASE_*` / `swapi.base-url`).  
-Limitaciones típicas del free tier (cold start, sleep de DB) se documentarán con la URL pública.
+**Host:** [Fly.io](https://fly.io) · **DB prod:** H2 file (`/data/challenge`) · **sin** Postgres managed de pago.
+
+Artefactos en el repo: `Dockerfile` (Maven Java 21 → JRE), `fly.toml`, perfil Spring `prod`.
+
+### Variables de entorno
+
+| Variable | Obligatorio | Notas |
+|----------|-------------|--------|
+| `SPRING_PROFILES_ACTIVE` | Sí | `prod` (ya en `fly.toml` `[env]`) |
+| `JWT_SECRET` | Sí | Secret largo (≥32 chars). **Solo** vía `fly secrets set` |
+| `PORT` | No | Fly inyecta `8080`; la app usa `server.port=${PORT:8080}` y `0.0.0.0` |
+| `H2_FILE_PATH` | No | Default `/data/challenge` |
+| `SEED_USER_PASSWORD` / `SEED_ADMIN_PASSWORD` | No | Overrides del seed |
+
+### Comandos (Gaston)
+
+Requisitos: [flyctl](https://fly.io/docs/hands-on/install-flyctl/) + login (`fly auth login` o `FLY_API_TOKEN`).
+
+```bash
+# 1) Crear app (si el nombre challenge-conexa está tomado, elegí otro y editá fly.toml)
+fly launch --no-deploy --name challenge-conexa --region iad --copy-config
+# o, si la app ya existe en fly.toml:
+fly apps create challenge-conexa   # solo si aún no existe
+
+# 2) Secret JWT (NO pegar el valor en chat / issues / commits)
+fly secrets set JWT_SECRET="$(openssl rand -base64 48)"
+
+# 3) (Opcional) Volumen 1 GB para persistir H2 entre reinicios
+fly volumes create challenge_data --region iad --size 1
+# Luego descomentar [[mounts]] en fly.toml
+
+# 4) Deploy
+fly deploy
+
+# 5) Abrir / status
+fly status
+fly open
+# URL típica: https://challenge-conexa.fly.dev
+```
+
+Smoke post-deploy:
+
+```bash
+BASE=https://challenge-conexa.fly.dev   # ajustar al hostname real
+
+curl -s "$BASE/actuator/health"
+
+TOKEN=$(curl -s -X POST "$BASE/api/v1/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"user","password":"user123"}' | jq -r .accessToken)
+
+curl -s "$BASE/api/v1/people?page=1&limit=5" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+### URL pública
+
+Aún **no desplegada desde este agente** (no había `FLY_API_TOKEN` en el entorno). Tras `fly deploy` la URL será:
+
+`https://<app-name>.fly.dev` (p. ej. `https://challenge-conexa.fly.dev` si el nombre está libre).
+
+### Límites free / hobby (esperables)
+
+- **Cold start / auto-stop:** `min_machines_running = 0` → la máquina duerme; el primer request puede tardar varios segundos.
+- **RAM:** VM 512 MB compartida (ver `fly.toml`).
+- **H2 sin volumen:** datos de auth en disco efímero; reinicio/redeploy = DB vacía + re-seed.
+- **H2 con volumen:** users persisten; el volumen puede no estar en el plan más restringido — crear solo si el plan lo permite.
+- **Sin Postgres managed:** decisión consciente (ADR-05); SWAPI sigue siendo la fuente del catálogo.
+- **Egress a SWAPI:** dependencia de red externa; 502 si swapi.tech cae.
+
+### Smoke local con perfil prod
+
+```bash
+mkdir -p data
+JWT_SECRET=local-prod-smoke-secret-at-least-32-chars \
+SPRING_PROFILES_ACTIVE=prod \
+H2_FILE_PATH=./data/challenge \
+./mvnw spring-boot:run
+```
 
 ---
 
