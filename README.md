@@ -2,7 +2,7 @@
 
 API REST en **Java 21 / Spring Boot** que integra [SWAPI](https://swapi.dev/), con autenticación JWT + roles, UI de demo con estética Star Wars, OpenAPI, tests y deploy en host gratuito.
 
-> **Estado actual:** Fase 0 — scaffold. Aún no hay JWT, cliente SWAPI ni pantallas de UI.
+> **Estado actual:** Fase 1 — Security + User store. Login JWT y usuarios seed listos. Cliente SWAPI y UI pendientes.
 
 Repo: https://github.com/duartegaston/challenge-conexa  
 Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
@@ -15,7 +15,7 @@ Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
 - Java 21+
 - Maven 3.9+ (o usar el wrapper `./mvnw`)
 
-### Arranque (perfil `local`, H2 en memoria)
+### Arranque (perfil `local`, H2 en memoria + Flyway)
 
 ```bash
 ./mvnw spring-boot:run
@@ -25,7 +25,7 @@ Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
 - Health: http://localhost:8080/actuator/health  
 - Swagger UI: http://localhost:8080/swagger-ui.html  
 
-El perfil por defecto es `local` (H2). PostgreSQL se usa en `prod` (Fase 1+ / deploy).
+El perfil por defecto es `local` (H2). PostgreSQL se usa en `prod` (deploy).
 
 Variables de entorno de ejemplo: ver `.env.example`.
 
@@ -33,22 +33,54 @@ Variables de entorno de ejemplo: ver `.env.example`.
 
 ## Credenciales seed
 
-Pendiente — Fase 1 (usuarios sembrados al arranque).
+Usuarios sembrados al arranque si no existen (`UserDataSeeder`). Passwords configurables vía env (`SEED_USER_PASSWORD`, `SEED_ADMIN_PASSWORD`); defaults de demo:
+
+| Username | Password | Roles |
+|----------|----------|-------|
+| `user` | `user123` | USER |
+| `admin` | `admin123` | USER, ADMIN |
+
+Solo para demo local. En prod, cambiar secretos JWT y passwords seed.
+
+### Login (curl)
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"user","password":"user123"}'
+```
+
+Respuesta: `{ "accessToken", "tokenType": "Bearer", "expiresIn", "roles" }`.
+
+### Endpoint protegido
+
+```bash
+TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"admin123"}' | jq -r .accessToken)
+
+curl -s http://localhost:8080/api/v1/auth/me \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Sin token → `401 Unauthorized`.
 
 ---
 
 ## Endpoints principales
 
-Base prevista: `/api/v1` (Fases 1–3).
+Base: `/api/v1`.
 
 | Método | Path | Auth | Estado |
 |--------|------|------|--------|
-| POST | `/api/v1/auth/login` | Público | Pendiente Fase 1 |
+| POST | `/api/v1/auth/login` | Público | Disponible (Fase 1) |
+| GET | `/api/v1/auth/me` | JWT | Disponible (Fase 1) |
 | GET | `/api/v1/people` … | JWT + USER | Pendiente Fase 3 |
 | GET | `/api/v1/films` … | JWT + USER | Pendiente Fase 3 |
 | GET | `/api/v1/starships` … | JWT + USER | Pendiente Fase 3 |
 | GET | `/api/v1/vehicles` … | JWT + USER | Pendiente Fase 3 |
-| GET | `/actuator/health` | Público | Disponible (Fase 0) |
+| GET | `/actuator/health` | Público | Disponible |
+| GET | `/swagger-ui.html` | Público | Disponible |
 
 ---
 
@@ -62,7 +94,7 @@ Cada fila resume una decisión cerrada del plan (ADR-style: Decision / Why).
 | **JWT Bearer + Spring Security + roles; seed al startup; sin registro público** | Stack a demostrar; setup reproducible para el evaluador; menor superficie. |
 | **Cliente HTTP vivo a SWAPI + caché Caffeine (TTL corto); no persistir catálogo** | SWAPI es la fuente de verdad; evita sync/ETL; Caffeine mitiga latencia. |
 | **Paginación: forward de `page`/`limit` SWAPI; shape normalizado** | Sin store local no hay Pageable JPA; contrato transparente. |
-| **PostgreSQL solo para usuarios/auth** | Solo se necesita identidad/roles; el resto es proxy a SWAPI. |
+| **PostgreSQL solo para usuarios/auth + Flyway** | Solo se necesita identidad/roles; el resto es proxy a SWAPI. |
 | **OpenAPI/Swagger obligatorio; README en español; código en inglés** | Contrato vivo + README alineado al idioma del challenge. |
 | **Maven + Java 21 + Spring Boot MVC en capas** | Stack del brief; patrón layered a demostrar. |
 | **Sonar en CI (plus); deploy Render/Fly; Docker opcional** | Calidad visible y path de entrega sin bloquear el MVP. |
@@ -89,7 +121,7 @@ Cada fila resume una decisión cerrada del plan (ADR-style: Decision / Why).
 - **Why:** Sin store local; cliente de demo simple.
 
 #### ADR-05 — Persistencia
-- **Decision:** PostgreSQL únicamente para `User` (auth).
+- **Decision:** PostgreSQL únicamente para `User` (auth); schema con Flyway; H2 en `local`/`test`.
 - **Why:** Solo identidad/roles; el resto es proxy.
 
 #### ADR-06 — Documentación e idioma
@@ -161,7 +193,7 @@ Pendiente — Fase 4. Login + listados paginados/filtrables con tipografía, col
 ./mvnw test
 ```
 
-Pendiente ampliar en Fases 1–5. En Fase 0: smoke `contextLoads`.
+Fase 1: login ok/fail; endpoint protegido `401` sin token y `200` con JWT (`AuthIntegrationTest`).
 
 ---
 
@@ -191,9 +223,3 @@ Verificar: `git log -1 --format='%an <%ae>'`.
 - Stale-if-error en caché SWAPI  
 - Observabilidad (request id, métricas)  
 - Rate limiting frente a SWAPI  
-
----
-
-## Nota Fase 0
-
-`SecurityConfig` deja `permitAll` de forma temporal para que la app arranque. Se reemplaza en Fase 1 con JWT + roles (deny-by-default).
