@@ -1,4 +1,4 @@
 /**
- * Entidad User, repository y seed (Fase 1+).
+ * User persistence: entity, repository and startup seed.
  */
 package com.conexa.challenge.user;

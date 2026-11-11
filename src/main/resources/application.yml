@@ -6,11 +6,14 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: none
+      ddl-auto: validate
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 
 server:
   port: 8080
@@ -40,21 +43,23 @@ cache:
     ttl-minutes: 5
     max-size: 300
 
-# Fase 0: JWT y seed se configuran en Fase 1.
 app:
   security:
     jwt:
-      secret: ${JWT_SECRET:change-me-phase0-not-for-prod}
+      secret: ${JWT_SECRET:change-me-phase1-demo-secret-must-be-long-enough-256bits}
       expiration-minutes: 60
+    seed:
+      user-password: ${SEED_USER_PASSWORD:user123}
+      admin-password: ${SEED_ADMIN_PASSWORD:admin123}
 
 ---
-# Perfil local: H2 en memoria para arrancar sin PostgreSQL (scaffold Fase 0).
+# Perfil local: H2 en memoria (compatible PostgreSQL) + Flyway.
 spring:
   config:
     activate:
       on-profile: local
   datasource:
-    url: jdbc:h2:mem:challenge;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    url: jdbc:h2:mem:challenge;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -63,7 +68,7 @@ spring:
       enabled: false
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
 logging:
   level:
     root: INFO
@@ -90,16 +95,18 @@ logging:
     com.conexa.challenge: INFO
 
 ---
-# Perfil test: H2 para tests.
+# Perfil test: H2 + Flyway para tests de integración.
 spring:
   config:
     activate:
       on-profile: test
   datasource:
-    url: jdbc:h2:mem:challenge_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    url: jdbc:h2:mem:challenge_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     driver-class-name: org.h2.Driver
     username: sa
     password:
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: validate
+  flyway:
+    enabled: true

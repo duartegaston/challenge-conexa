@@ -1,4 +1,4 @@
 /**
- * Security, OpenAPI, Cache, Jackson y seed de arranque.
+ * Application configuration (security, OpenAPI, cache, seed wiring).
  */
 package com.conexa.challenge.config;
