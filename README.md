@@ -2,7 +2,8 @@
 
 API REST en **Java 21 / Spring Boot** que integra [SWAPI](https://www.swapi.tech/) con autenticación JWT + roles, UI de demo con estética Star Wars, OpenAPI, tests y path de deploy en host gratuito.
 
-> **Estado actual:** Fase 7 — deploy Fly.io (Docker + H2 file). URL pública: pendiente de `fly deploy` con `FLY_API_TOKEN` / cuenta de Gaston. SonarCloud sigue opcional (`SONAR_TOKEN`).
+> **Live:** https://challenge-conexa.fly.dev/  
+> Fase 7 — Fly.io (Docker + H2 file). SonarCloud opcional (`SONAR_TOKEN`).
 
 Repo: https://github.com/duartegaston/challenge-conexa  
 Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
@@ -309,7 +310,7 @@ fly open
 Smoke post-deploy:
 
 ```bash
-BASE=https://challenge-conexa.fly.dev   # ajustar al hostname real
+BASE=https://challenge-conexa.fly.dev
 
 curl -s "$BASE/actuator/health"
 
@@ -323,9 +324,7 @@ curl -s "$BASE/api/v1/people?page=1&limit=5" \
 
 ### URL pública
 
-Aún **no desplegada desde este agente** (no había `FLY_API_TOKEN` en el entorno). Tras `fly deploy` la URL será:
-
-`https://<app-name>.fly.dev` (p. ej. `https://challenge-conexa.fly.dev` si el nombre está libre).
+**https://challenge-conexa.fly.dev/**
 
 ### Límites free / hobby (esperables)
 
