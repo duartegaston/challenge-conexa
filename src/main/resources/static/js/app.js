@@ -44,8 +44,10 @@ document.querySelectorAll(".tab").forEach((tab) => {
     document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
     state.resource = tab.dataset.resource;
     state.page = 1;
-    // El id pertenece a un recurso: al cambiar de tab no tiene sentido arrastrarlo.
+    // Los filtros son por recurso: al cambiar de tab no tiene sentido arrastrarlos.
+    state.filter = "";
     state.id = "";
+    filterInput.value = "";
     idInput.value = "";
     detailEl.classList.add("hidden");
     void loadList();

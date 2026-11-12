@@ -7,7 +7,9 @@ Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
 
 ---
 
-## Deploy (Fly.io)
+## Deploy ([Fly.io](http://Fly.io))
+
+**Aclaracion**: La UI considero que no este dentro del alcance del challenge, fue desarrollado con HTML, CSS y Javascript para poder simplemente las request realizadas y no tener que probarlas por postman por ejemplo.
 
 | Recurso | URL |
 |---------|-----|
@@ -17,11 +19,11 @@ Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
 
 La máquina se apaga por inactividad (`auto_stop_machines`): el primer request después de un rato puede tardar varios segundos (**cold start**).
 
-Para desplegar: `fly secrets set JWT_SECRET="$(openssl rand -base64 48)"` y `fly deploy`. Sin `JWT_SECRET` la app no arranca.
+Para desplegar (no necesario): `fly secrets set JWT_SECRET="$(openssl rand -base64 48)"` y `fly deploy`. Sin `JWT_SECRET` la app no arranca.
 
 ---
 
-## Cómo correr (local)
+## Cómo correr local en caso de querer probarlo de esta forma.
 
 ### Requisitos
 
@@ -41,29 +43,13 @@ Para desplegar: `fly secrets set JWT_SECRET="$(openssl rand -base64 48)"` y `fly
 | **Swagger UI** | http://localhost:8080/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |
 
-### Variables de entorno
-
-Spring Boot **no** lee archivos `.env`: se exportan en el shell (`export JWT_SECRET=...`) o se pasan al contenedor.
-
-| Variable | Default | Uso |
-|----------|---------|-----|
-| `JWT_SECRET` | secreto de desarrollo en `local`/`test`; **sin default en `prod`** | Firma de los JWT. Mínimo 32 caracteres. |
-| `SEED_USER_PASSWORD` | `user123` | Password del usuario seed `user` |
-| `SEED_ADMIN_PASSWORD` | `admin123` | Password del usuario seed `admin` |
-| `SPRING_PROFILES_ACTIVE` | `local` | `local`, `test` o `prod` |
-| `PORT` | `8080` | Puerto HTTP |
-| `H2_FILE_PATH` | `/data/challenge` | Solo `prod`: archivo de la base H2 |
-| `H2_PASSWORD` | vacío | Solo `prod`: password de la base H2 |
-
-Para no sembrar los usuarios de demo: `app.security.seed.enabled=false`.
-
 ---
 
 ## Usuarios, registro y login
 
 Hay dos formas de tener un usuario:
 
-- **Registrarse:** `POST /api/v1/auth/register` crea un usuario con rol USER (el rol no se puede elegir). El username no distingue mayúsculas; 3–50 caracteres (letras, números, `.`, `_`, `-`) y password de 8–72.
+- **Registrarse:** `POST /api/v1/auth/register` crea un usuario con rol USER (el rol no se puede elegir). No fue agregado a la UI con el fin de evitar complejidad a nivel frontend ya que considero que no aplica al caso.
 - **Usuarios de demo**, sembrados al arrancar si no existen (`UserDataSeeder`):
 
 | Username | Password | Roles |
@@ -108,7 +94,7 @@ Listado: `{ "content", "page", "limit", "total", "hasNext" }`. `page` ≥ 1, `li
 
 ### Errores
 
-Todos los errores son `application/problem+json` ([RFC 7807](https://datatracker.ietf.org/doc/html/rfc7807)):
+Todos los errores son `application/problem+json`:
 
 ```json
 { "type": "about:blank", "title": "Bad Request", "status": 400, "detail": "Validation failed",
@@ -126,7 +112,7 @@ Todos los errores son `application/problem+json` ([RFC 7807](https://datatracker
 
 ---
 
-## UI demo (look Star Wars)
+## UI demo a nivel local
 
 1. http://localhost:8080/ — login o "Crear una" cuenta (JWT en `sessionStorage`)
 2. http://localhost:8080/app.html — tabs, filtros por nombre y/o id, paginación y detalle; con el usuario `admin` aparece "Vaciar caché"
@@ -136,7 +122,7 @@ Tipografía Orbitron / Exo 2 (Google Fonts); fondo espacial; acentos oro crawl +
 
 ---
 
-## OpenAPI / Swagger
+## OpenAPI / Swagger (local)
 
 - UI: http://localhost:8080/swagger-ui.html
 - Spec: http://localhost:8080/v3/api-docs
@@ -163,22 +149,22 @@ Base: `/api/v1`.
 
 ## Decisiones
 
-| Decisión | Por qué |
-|----------|---------|
-| **REST API** | Simplicidad y menor sobrecarga. |
-| **JWT Bearer + Spring Security + roles** | Stateless para API REST (UI, Swagger, curl) sin sesión en servidor. Spring Security + roles cubren authz sin OAuth/IdP (sobrepeso para el challenge) ni Basic Auth (poco apto para SPA). Toda la autorización por ruta vive en `SecurityConfig`. |
-| **Registro de usuarios + login** | El requisito pide un login seguro: con registro el sistema es completo y la persistencia en H2 tiene sentido. Passwords con BCrypt; el rol de un registro siempre es USER. |
-| **Spring `RestClient` → swapi.tech + timeouts + Caffeine** | SWAPI es la fuente de verdad; `RestClient` es nativo del stack MVC (se construye desde el builder de Boot, conserva métricas); Caffeine mitiga la latencia; sin dependencias de terceros del dominio Star Wars. |
-| **Paginación normalizada (`PageResponse`)** | Contrato estable hacia la UI. SWAPI solo pagina el listado sin filtro; búsquedas y films devuelven todo junto, así que en ese caso se pagina en memoria. |
-| **Errores con `ProblemDetail` (RFC 7807)** | Estándar de Spring 6, formato único para errores de dominio, validación y seguridad (401/403 incluidos). |
-| **Controllers sin `ResponseEntity` en el caso feliz** | Controllers finos: el tipo de retorno + `@ResponseStatus` fijan el status; los errores salen de `@RestControllerAdvice`. |
-| **Clases base para el catálogo** | `AbstractCatalogController` y `AbstractCatalogService` evitan repetir el mismo código en people/starships/vehicles. Films queda aparte porque acepta `title`. |
-| **Solo H2 + Flyway (para usuarios)** | El challenge no persiste el catálogo. H2 en memoria (local/test) o en archivo (prod) alcanza, y Flyway versiona el esquema. Se dejó de lado PostgreSQL: si más adelante se migra, el SQL de Flyway es estándar y alcanza con agregar el driver y un perfil/URL (hoy no hay driver en el build). |
-| **`JWT_SECRET` sin default en prod** | El valor de `local`/`test` es solo para desarrollo; en `prod` la app no arranca sin secreto (validado al bindear la configuración). |
-| **Maven + Java 21 + capas clásicas MVC** | Packages `config`/`controller`/`service`/`model`/`repository`/`security`/`client`/`exception`. |
-| **SonarCloud vía GitHub Actions** | Calidad y cobertura (JaCoCo) visibles en cada push/PR. |
-| **Deploy Fly.io + Docker multi-stage (Java 21)** | Path simple de deploy; `JWT_SECRET` vía Fly secrets. |
-| **Cursor + SDD (plan → fases → ejecución)** | Alcance controlado y entregas incrementales. |
+| Decisión                                                       | Por qué                                                                                                                                                                                                                                                                                         |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **REST API**                                                   | Simplicidad y menor sobrecarga.                                                                                                                                                                                                                                                                 |
+| **JWT Bearer + Spring Security + roles**                       | Stateless para API REST (UI, Swagger, curl) sin sesión en servidor. Spring Security + roles cubren authz sin OAuth/IdP (sobrepeso para el challenge) ni Basic Auth (poco apto para SPA). Toda la autorización por ruta vive en `SecurityConfig`.                                                |
+| **Registro de usuarios + login**                               | El requisito pide un login seguro: con registro el sistema es completo y la persistencia en H2 tiene sentido. Passwords con BCrypt; el rol de un registro siempre es USER.                                                                                                                      |
+| **Spring** `RestClient` **→ swapi.tech + timeouts + Caffeine** | SWAPI es la fuente de verdad; `RestClient` es nativo del stack MVC (se construye desde el builder de Boot, conserva métricas); Caffeine mitiga la latencia (de la docu de SWAPI); sin dependencias de terceros del dominio Star Wars.                                                           |
+| **Paginación normalizada (**`PageResponse`**)**                | Contrato estable hacia la UI. SWAPI solo pagina el listado sin filtro; búsquedas y films devuelven todo junto, así que en ese caso se pagina en memoria.                                                                                                                                        |
+| **Errores con** `ProblemDetail`                                | Estándar de Spring 6, formato único para errores de dominio, validación y seguridad (401/403 incluidos).                                                                                                                                                                                        |
+| **Controllers sin** `ResponseEntity` **en el caso feliz**      | Controllers finos: el tipo de retorno + `@ResponseStatus` fijan el status; los errores salen de `@RestControllerAdvice`.                                                                                                                                                                        |
+| **Clases base para el catálogo**                               | `AbstractCatalogController` y `AbstractCatalogService` evitan repetir el mismo código en people/starships/vehicles. Films queda aparte porque acepta `title`.                                                                                                                                   |
+| **Solo H2 + Flyway (para usuarios)**                           | El challenge no persiste el catálogo. H2 en memoria (local/test) o en archivo (prod) alcanza, y Flyway versiona el esquema. Se dejó de lado PostgreSQL: si más adelante se migra, el SQL de Flyway es estándar y alcanza con agregar el driver y un perfil/URL (hoy no hay driver en el build). |
+| `JWT_SECRET` **sin default en prod**                           | El valor de `local`/`test` es solo para desarrollo; en `prod` la app no arranca sin secreto (validado al bindear la configuración).                                                                                                                                                             |
+| **Maven + Java 21 + capas clásicas MVC**                       | Packages `config`/`controller`/`service`/`model`/`repository`/`security`/`client`/`exception`.                                                                                                                                                                                                  |
+| **SonarCloud vía GitHub Actions**                              | Calidad y cobertura (JaCoCo) visibles en cada push/PR.                                                                                                                                                                                                                                          |
+| **Deploy Fly.io + Docker multi-stage (Java 21)**               | Path simple de deploy; `JWT_SECRET` vía Fly secrets.                                                                                                                                                                                                                                            |
+| **Cursor + SDD (plan → fases → ejecución)**                    | Alcance controlado y entregas incrementales.                                                                                                                                                                                                                                                    |
 
 ---
 
@@ -260,7 +246,7 @@ flowchart LR
 `.github/workflows/ci.yml` corre en cada push a `main` y en cada PR:
 
 1. `./mvnw verify` — tests y cobertura JaCoCo.
-2. Análisis de **SonarCloud**, con el secret `SONAR_TOKEN` del repo (se saltea en PRs desde forks, que no reciben secrets). La configuración del proyecto está en las propiedades `sonar.*` del `pom.xml`.
+2. Análisis de **SonarCloud**, con el secret `SONAR_TOKEN` del repo (se saltea en PRs desde forks, que no reciben secrets). La configuración del proyecto está en las propiedades `sonar.`* del `pom.xml`.
 
 ---
 
