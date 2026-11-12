@@ -1,6 +1,6 @@
 # Challenge Conexa — API Star Wars (SWAPI)
 
-API REST en **Java 21 / Spring Boot** que integra [SWAPI](https://www.swapi.tech/) con autenticación JWT + roles, UI de demo con estética Star Wars, OpenAPI, tests y path de deploy en host gratuito.
+API REST en **Java 21 / Spring Boot 3** que expone el catálogo de [SWAPI](https://www.swapi.tech/) (people, films, starships, vehicles) con registro/login JWT, roles USER/ADMIN, OpenAPI, tests y deploy en Fly.io. Incluye una UI de demo con estética Star Wars.
 
 Repo: https://github.com/duartegaston/challenge-conexa  
 Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
@@ -12,10 +12,12 @@ Autor: [duartegaston](https://github.com/duartegaston) (Gaston Duarte)
 | Recurso | URL |
 |---------|-----|
 | App | https://challenge-conexa.fly.dev |
-| **Swagger UI** | https://challenge-conexa.fly.dev/swagger-ui/index.html |
+| **Swagger UI** | https://challenge-conexa.fly.dev/swagger-ui.html |
 | OpenAPI JSON | https://challenge-conexa.fly.dev/v3/api-docs |
 
-Está en el plan free de Fly.io: la máquina puede apagarse por inactividad (**cold start**). El primer request puede tardar varios segundos en responder.
+La máquina se apaga por inactividad (`auto_stop_machines`): el primer request después de un rato puede tardar varios segundos (**cold start**).
+
+Para desplegar: `fly secrets set JWT_SECRET="$(openssl rand -base64 48)"` y `fly deploy`. Sin `JWT_SECRET` la app no arranca.
 
 ---
 
@@ -23,10 +25,9 @@ Está en el plan free de Fly.io: la máquina puede apagarse por inactividad (**c
 
 ### Requisitos
 
-- Java 21+
-- Maven 3.9+ (o el wrapper `./mvnw`)
+- Java 21+ (el wrapper `./mvnw` descarga Maven)
 
-### Arranque (perfil `local`, H2 en memoria + Flyway)
+### Arranque (perfil `local`: H2 en memoria + Flyway)
 
 ```bash
 ./mvnw spring-boot:run
@@ -40,118 +41,149 @@ Está en el plan free de Fly.io: la máquina puede apagarse por inactividad (**c
 | **Swagger UI** | http://localhost:8080/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |
 
-Perfil por defecto: `local` (H2 en memoria). Prod (Fly) usa **H2 file** en `/data`. Variables: `.env.example`.
+### Variables de entorno
+
+Spring Boot **no** lee archivos `.env`: se exportan en el shell (`export JWT_SECRET=...`) o se pasan al contenedor.
+
+| Variable | Default | Uso |
+|----------|---------|-----|
+| `JWT_SECRET` | secreto de desarrollo en `local`/`test`; **sin default en `prod`** | Firma de los JWT. Mínimo 32 caracteres. |
+| `SEED_USER_PASSWORD` | `user123` | Password del usuario seed `user` |
+| `SEED_ADMIN_PASSWORD` | `admin123` | Password del usuario seed `admin` |
+| `SPRING_PROFILES_ACTIVE` | `local` | `local`, `test` o `prod` |
+| `PORT` | `8080` | Puerto HTTP |
+| `H2_FILE_PATH` | `/data/challenge` | Solo `prod`: archivo de la base H2 |
+| `H2_PASSWORD` | vacío | Solo `prod`: password de la base H2 |
+
+Para no sembrar los usuarios de demo: `app.security.seed.enabled=false`.
 
 ---
 
-## Credenciales
+## Usuarios, registro y login
 
-Usuarios sembrados al arranque si no existen (`UserDataSeeder`). Overrides: `SEED_USER_PASSWORD`, `SEED_ADMIN_PASSWORD`.
+Hay dos formas de tener un usuario:
+
+- **Registrarse:** `POST /api/v1/auth/register` crea un usuario con rol USER (el rol no se puede elegir). El username no distingue mayúsculas; 3–50 caracteres (letras, números, `.`, `_`, `-`) y password de 8–72.
+- **Usuarios de demo**, sembrados al arrancar si no existen (`UserDataSeeder`):
 
 | Username | Password | Roles |
 |----------|----------|-------|
 | `user` | `user123` | USER |
 | `admin` | `admin123` | USER, ADMIN |
 
-Solo para demo. En prod hay que setear `JWT_SECRET` (Fly secrets) y las passwords de seed. Si el perfil `prod` arranca con el secreto vacío o con el default público de `application.yml`, el proceso termina al inicio.
-
-### Login (curl)
+Los usuarios se guardan en H2 (passwords con BCrypt). Las passwords de demo son públicas: **solo para demo**.
 
 ```bash
+curl -s -X POST http://localhost:8080/api/v1/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"luke","password":"s3cret-pass"}'
+# 201 {"username":"luke","roles":["USER"]}   ·   409 si ya existe
+
 curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"user","password":"user123"}'
+  -d '{"username":"luke","password":"s3cret-pass"}'
+# {"accessToken":"...","tokenType":"Bearer","expiresIn":3600,"roles":["USER"]}
 ```
 
-Respuesta: `{ "accessToken", "tokenType": "Bearer", "expiresIn", "roles" }`.
-
-### Recursos (curl)
+### Recursos
 
 ```bash
 TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username":"user","password":"user123"}' | jq -r .accessToken)
 
-curl -s "http://localhost:8080/api/v1/people?page=1&limit=5&name=sky" \
-  -H "Authorization: Bearer $TOKEN"
-
-curl -s http://localhost:8080/api/v1/people/1 \
-  -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:8080/api/v1/people?page=1&limit=5&name=sky" -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:8080/api/v1/people/1 -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:8080/api/v1/films?title=hope" -H "Authorization: Bearer $TOKEN"
 ```
 
-Listado: `{ "content", "page", "limit", "total", "hasNext" }`.  
-Filtro `name`/`title` → query remoto en SWAPI (`name` o `title`). Sin token → `401`.
+Listado: `{ "content", "page", "limit", "total", "hasNext" }`. `page` ≥ 1, `limit` entre 1 y 100 (default 10). El filtro `name` (o `title` en films) busca en SWAPI por coincidencia parcial. El `id` del detalle es numérico.
 
----
+### Errores
+
+Todos los errores son `application/problem+json` ([RFC 7807](https://datatracker.ietf.org/doc/html/rfc7807)):
+
+```json
+{ "type": "about:blank", "title": "Bad Request", "status": 400, "detail": "Validation failed",
+  "instance": "/api/v1/people", "errors": { "limit": "must be less than or equal to 100" } }
+```
+
+| Status | Cuándo |
+|--------|--------|
+| 400 | Parámetro o body inválido (`errors` indica el campo) |
+| 401 | Sin token, token inválido/vencido, o credenciales incorrectas |
+| 403 | Token válido pero sin el rol requerido |
+| 404 | Id inexistente en SWAPI |
+| 409 | `register` con un username que ya existe |
+| 502 | SWAPI caído, lento o con respuesta inválida |
 
 ---
 
 ## UI demo (look Star Wars)
 
-1. http://localhost:8080/ — login (JWT en `sessionStorage`)
-2. http://localhost:8080/app.html — tabs, filtro, paginación, detalle
-3. 401 → vuelve al login
+1. http://localhost:8080/ — login o "Crear una" cuenta (JWT en `sessionStorage`)
+2. http://localhost:8080/app.html — tabs, filtro, paginación y detalle; con el usuario `admin` aparece "Vaciar caché"
+3. Un 401 devuelve al login
 
-Tipografía Orbitron / Exo 2; fondo espacial; acentos oro crawl + azul sable.
+Tipografía Orbitron / Exo 2 (Google Fonts); fondo espacial; acentos oro crawl + azul sable.
 
 ---
 
 ## OpenAPI / Swagger
 
-- UI: http://localhost:8080/swagger-ui.html  
-- Spec: http://localhost:8080/v3/api-docs  
-- Security scheme `bearerAuth` (JWT). Login es público; recursos llevan tag + `@SecurityRequirement`.  
-- Flujo sugerido: `POST /api/v1/auth/login` → Authorize con el `accessToken` → probar `GET /api/v1/people`.
+- UI: http://localhost:8080/swagger-ui.html
+- Spec: http://localhost:8080/v3/api-docs
+- Security scheme `bearerAuth` (JWT). Login y registro son públicos.
+- Flujo sugerido: `POST /api/v1/auth/login` → **Authorize** con el `accessToken` → probar `GET /api/v1/people`.
 
-## Endpoints principales
+## Endpoints
 
 Base: `/api/v1`.
 
-| Método | Path | Auth | Notas |
-|--------|------|------|-------|
-| POST | `/api/v1/auth/login` | Público | Emite JWT |
-| GET | `/api/v1/auth/me` | JWT | Perfil |
-| GET | `/api/v1/people` | JWT + USER | `page`, `limit`, `name` |
-| GET | `/api/v1/people/{id}` | JWT + USER | Detalle |
-| GET | `/api/v1/films` | JWT + USER | `page`, `limit`, `name`/`title` |
-| GET | `/api/v1/films/{id}` | JWT + USER | Detalle |
-| GET | `/api/v1/starships` | JWT + USER | `page`, `limit`, `name` |
-| GET | `/api/v1/starships/{id}` | JWT + USER | Detalle |
-| GET | `/api/v1/vehicles` | JWT + USER | `page`, `limit`, `name` |
-| GET | `/api/v1/vehicles/{id}` | JWT + USER | Detalle |
+| Método | Path | Acceso | Notas |
+|--------|------|--------|-------|
+| POST | `/auth/login` | Público | Emite JWT |
+| POST | `/auth/register` | Público | Crea usuario USER |
+| GET | `/auth/me` | Autenticado | Usuario y roles |
+| GET | `/people` · `/people/{id}` | USER | `page`, `limit`, `name` |
+| GET | `/films` · `/films/{id}` | USER | `page`, `limit`, `title` (o `name`) |
+| GET | `/starships` · `/starships/{id}` | USER | `page`, `limit`, `name` |
+| GET | `/vehicles` · `/vehicles/{id}` | USER | `page`, `limit`, `name` |
+| DELETE | `/admin/cache` | ADMIN | Vacía las cachés de SWAPI (204) |
 | GET | `/actuator/health` | Público | Liveness |
-| GET | `/swagger-ui.html` | Público | OpenAPI + Authorize Bearer |
 
 ---
 
 ## Decisiones
 
-Cada fila resume una decisión tomada.
-
-| Decisión                                                                                         | Por qué                                                                                                                                                                                              |
-| ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **REST API**                                                                                     | REST API, Simplicidad y menor sobrecarga.                                                                                                                                                            |
-| **JWT Bearer + Spring Security + roles.**                                                        | Stateless para API REST (UI, Swagger, curl) sin sesión en servidor. Spring Security + roles cubren authz sin OAuth/IdP (sobrepeso para el challenge) ni Basic Auth (poco apto para SPA).              |
-| **Spring** `RestClient` **→ https://www.swapi.tech + timeouts + Caffeine**                       | SWAPI es la fuente de verdad; RestClient nativo del stack MVC; Caffeine mitiga latencia; no dependencias de terceros de dominio SW.                                                                  |
-| **Controllers sin** `ResponseEntity` **envolviendo cada respuesta**                              | Controllers thin: el tipo de retorno + `@ResponseStatus` / defaults MVC fijan el status; errores vía `@RestControllerAdvice`. `ResponseEntity` solo si hiciera falta variar status/headers por rama. |
-| **Paginación normalizada (**`PageResponse`**)**                                                  | Contrato estable hacia la UI; page/limit reenviados a SWAPI.                                                                                                                                         |
-| **H2 + Flyway solo para** `UserEntity` **(auth/seed). Sin driver de PostgreSQL.**                | El challenge no persiste el catálogo de SWAPI. H2 en memoria (local/test) o en archivo (prod) alcanza. Flyway versiona el esquema; el driver de Postgres no está en el build. |
-| **Maven + Java 21 + capas clásicas MVC**                                                         | Packages `config`/`controller`/`service`/`model`/`repository`/`security`/`client`/`exception`.                                                                                                       |
-| **SonarCloud vía GitHub Action**                                                                 | Calidad visible cuando hay `SONAR_TOKEN`; no bloquea el MVP.                                                                                                                                         |
-| **Deploy Fly.io + Docker multi-stage (Java 21)**                                                 | Free/hobby path; `JWT_SECRET` vía Fly secrets.                                                                                                                                                       |
-| **Cursor + SDD (plan → fases → ejecución)**                                                      | Alcance controlado y entregas incrementales.                                                                                                                                     
+| Decisión | Por qué |
+|----------|---------|
+| **REST API** | Simplicidad y menor sobrecarga. |
+| **JWT Bearer + Spring Security + roles** | Stateless para API REST (UI, Swagger, curl) sin sesión en servidor. Spring Security + roles cubren authz sin OAuth/IdP (sobrepeso para el challenge) ni Basic Auth (poco apto para SPA). Toda la autorización por ruta vive en `SecurityConfig`. |
+| **Registro de usuarios + login** | El requisito pide un login seguro: con registro el sistema es completo y la persistencia en H2 tiene sentido. Passwords con BCrypt; el rol de un registro siempre es USER. |
+| **Spring `RestClient` → swapi.tech + timeouts + Caffeine** | SWAPI es la fuente de verdad; `RestClient` es nativo del stack MVC (se construye desde el builder de Boot, conserva métricas); Caffeine mitiga la latencia; sin dependencias de terceros del dominio Star Wars. |
+| **Paginación normalizada (`PageResponse`)** | Contrato estable hacia la UI. SWAPI solo pagina el listado sin filtro; búsquedas y films devuelven todo junto, así que en ese caso se pagina en memoria. |
+| **Errores con `ProblemDetail` (RFC 7807)** | Estándar de Spring 6, formato único para errores de dominio, validación y seguridad (401/403 incluidos). |
+| **Controllers sin `ResponseEntity` en el caso feliz** | Controllers finos: el tipo de retorno + `@ResponseStatus` fijan el status; los errores salen de `@RestControllerAdvice`. |
+| **Clases base para el catálogo** | `AbstractCatalogController` y `AbstractCatalogService` evitan repetir el mismo código en people/starships/vehicles. Films queda aparte porque acepta `title`. |
+| **Solo H2 + Flyway (para usuarios)** | El challenge no persiste el catálogo. H2 en memoria (local/test) o en archivo (prod) alcanza, y Flyway versiona el esquema. Se dejó de lado PostgreSQL: si más adelante se migra, el SQL de Flyway es estándar y alcanza con agregar el driver y un perfil/URL (hoy no hay driver en el build). |
+| **`JWT_SECRET` sin default en prod** | El valor de `local`/`test` es solo para desarrollo; en `prod` la app no arranca sin secreto (validado al bindear la configuración). |
+| **Maven + Java 21 + capas clásicas MVC** | Packages `config`/`controller`/`service`/`model`/`repository`/`security`/`client`/`exception`. |
+| **SonarCloud vía GitHub Actions** | Calidad y cobertura (JaCoCo) visibles en cada push/PR. |
+| **Deploy Fly.io + Docker multi-stage (Java 21)** | Path simple de deploy; `JWT_SECRET` vía Fly secrets. |
+| **Cursor + SDD (plan → fases → ejecución)** | Alcance controlado y entregas incrementales. |
 
 ---
 
 ## Metodología: Cursor + SDD
 
-Utilicé Cursor para el desarrollo, con una metodología Spec Driven Development. Primero le di el contexto con todas las especificaciones, luego generé un plan con distintas fases de implementación puliendo detalles y tomando distintas decisiones. Finalmente luego de implementar cada fase realicé una review de lo desarrollado y por último la ejecución y pruebas.
+Utilicé Cursor para el desarrollo, con una metodología Spec Driven Development: primero le di el contexto con todas las especificaciones, luego generé un plan con fases de implementación puliendo detalles y tomando decisiones, y después de cada fase hice una review de lo desarrollado antes de pasar a la ejecución y pruebas.
 
 1. **Plan** — alcance, ADRs y fases.
 2. **Fases** — checklist + Definition of Done.
 3. **Ejecución** — una fase a la vez.
 
-Contexto para el agente: [`.cursor/CONTEXT.md`](.cursor/CONTEXT.md), rules en `.cursor/rules/` y la skill `.cursor/skills/java-spring-rest/`.
+Las reglas y el contexto para el agente viven en `.cursor/` (uso local, no se versiona).
 
 ---
 
@@ -159,28 +191,30 @@ Contexto para el agente: [`.cursor/CONTEXT.md`](.cursor/CONTEXT.md), rules en `.
 
 ```
 com.conexa.challenge
-├── config       # Security, OpenAPI, Cache, properties
-├── controller   # Auth + resources REST (DTOs directos)
-├── service      # Auth, catalog, people/films/starships/vehicles, seed
-├── client       # SwapiClient (RestClient), mapper, properties
-├── security     # JWT filter, JwtService, UserDetails
+├── config       # Security, OpenAPI, Cache, RestClient, properties
+├── controller   # Auth, Admin y recursos REST (AbstractCatalogController)
+├── service      # Auth, catálogo (AbstractCatalogService), cache admin, seed
+├── client       # SwapiClient (RestClient + caché), SwapiMapper, respuestas de SWAPI
+├── security     # JwtService, filtro JWT, UserDetails, errores 401/403
 ├── model        # UserEntity, Role + dto/
 ├── repository   # UserRepository
-└── exception    # @RestControllerAdvice + excepciones de dominio
+└── exception    # GlobalExceptionHandler (ProblemDetail) + excepciones de dominio
 ```
 
 ---
 
 ## SWAPI + caché
 
-SWAPI es un servicio externo: cada listado o ficha suma latencia de red y, en Fly, el cold start ya es lento. La UI pagina y repite los mismos ids. Caffeine guarda esas respuestas en memoria del proceso para no volver a pegarle al origen en cada request igual.
+SWAPI es un servicio externo: cada listado o ficha suma latencia de red. Caffeine guarda esas respuestas en memoria del proceso para no volver a pegarle al origen en cada request igual.
 
-No reemplaza a SWAPI. Si el dato no está, o venció el TTL, el cliente va al origen y guarda el resultado. Errores y 404 no se cachean: se lanzan antes de devolver un valor. El tope de entradas (`cache.swapi.max-size`, default 300) y el TTL corto (default 5 minutos) limitan la RAM en la VM de 512 MB.
+No reemplaza a SWAPI. Si el dato no está o venció el TTL, el cliente va al origen y guarda el resultado. Errores y 404 no se cachean. Hay dos cachés, cada una con su TTL, para que la clave de una página no pise la de un detalle:
 
-Hay dos cachés para que la clave de una página no pise la de un detalle:
+| Caché | Clave | TTL (default) |
+|-------|-------|---------------|
+| `swapi-lists` | recurso + page + limit + filtro (sin distinguir mayúsculas) | 5 minutos |
+| `swapi-details` | recurso + id | 1 hora (los detalles casi no cambian) |
 
-- `swapi-lists` — recurso + page + limit + filtro
-- `swapi-details` — recurso + id
+Configurable en `swapi.cache.*`; el tope de entradas (`max-size`, default 300) limita la RAM en la VM de 512 MB. `DELETE /api/v1/admin/cache` las vacía.
 
 ```mermaid
 flowchart LR
@@ -191,41 +225,42 @@ flowchart LR
   swapi --> cache
 ```
 
-- **Origen:** https://www.swapi.tech/api (configurable `swapi.base-url`)
+- **Origen:** https://www.swapi.tech/api (`swapi.base-url`)
 - **Cliente:** Spring `RestClient` (sin SDK Star Wars)
-- **Timeouts:** `swapi.connect-timeout-ms`, `swapi.read-timeout-ms`
-- **Errores:** origen caído → **502 Bad Gateway**
-- Tests: WireMock / mocks — **nunca** red real a SWAPI en CI
-
+- **Timeouts:** `swapi.connect-timeout`, `swapi.read-timeout`
+- **Errores:** origen caído, lento o con respuesta ilegible → **502**
+- **Paginación:** el listado sin filtro lo pagina SWAPI (`total_records`, `next`). Las búsquedas y `/films` devuelven todo junto y se paginan en memoria.
+- **Tests:** WireMock / mocks — **nunca** red real a SWAPI en CI
 
 ---
 
 ## Tests
 
 ```bash
-./mvnw clean test
+./mvnw verify          # tests + reporte de cobertura (target/site/jacoco/index.html)
 ```
 
 | Tipo | Ejemplos |
 |------|----------|
-| Unit | `JwtServiceTest`, `AuthServiceTest`, `PeopleServiceTest`, `CatalogServiceTest`, `SwapiMapperTest` |
-| Slice | `@WebMvcTest` `PeopleControllerWebMvcTest`; `@DataJpaTest` `UserRepositoryTest` |
-| Integration | `@SpringBootTest` + H2: auth, login→JWT→people, WireMock SWAPI, resources |
+| Unit | `JwtServiceTest`, `JwtAuthenticationFilterTest`, `AuthServiceTest`, `CatalogServicesTest`, `SwapiMapperTest`, `PageResponseTest`, `UserDataSeederTest`, `GlobalExceptionHandlerTest` |
+| Slice | `@DataJpaTest` `UserRepositoryTest` (esquema real de Flyway) |
+| Integración | `@SpringBootTest` + H2 con login real: `AuthIntegrationTest`, `CatalogResourcesIntegrationTest` (parametrizado por recurso), `AdminIntegrationTest`, y `SwapiClientTest` contra WireMock |
 
 ---
 
-## Calidad / SonarCloud
+## Calidad / CI
 
-Hay workflow CI en `.github/workflows/ci.yml`:
+`.github/workflows/ci.yml` corre en cada push a `main` y en cada PR:
 
-1. Job **test** — siempre corre `./mvnw clean test`.
-2. Job **sonar**.
+1. `./mvnw verify` — tests y cobertura JaCoCo.
+2. Análisis de **SonarCloud**, con el secret `SONAR_TOKEN` del repo (se saltea en PRs desde forks, que no reciben secrets). La configuración del proyecto está en las propiedades `sonar.*` del `pom.xml`.
 
 ---
 
 ## Posibles mejoras a futuro
 
-- Refresh tokens / rotación de secretos JWT  
-- Stale-if-error en caché SWAPI  
-- Observabilidad (request id, métricas)  
-- Rate limiting frente a SWAPI
+- Refresh tokens / rotación de secretos JWT
+- Protección contra fuerza bruta en el login (rate limiting)
+- Stale-if-error en la caché de SWAPI
+- Observabilidad (request id, métricas de caché en un dashboard)
+- Migrar a PostgreSQL (driver + perfil) si los usuarios dejan de ser solo de demo

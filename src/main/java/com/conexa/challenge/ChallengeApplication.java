@@ -2,11 +2,10 @@ package com.conexa.challenge;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 
-/**
- * Punto de entrada de la API Challenge Conexa (SWAPI + JWT).
- */
 @SpringBootApplication
+@ConfigurationPropertiesScan
 public class ChallengeApplication {
 
     public static void main(String[] args) {

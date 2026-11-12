@@ -416,3 +416,19 @@ body {
 .hidden {
   display: none !important;
 }
+
+/* —— Ajustes de interacción —— */
+.controls .cta {
+  padding: 0.7rem 1rem;
+  margin: 0;
+}
+
+.results li:focus-visible {
+  outline: 2px solid var(--saber-blue);
+  outline-offset: 2px;
+  background: var(--fog);
+}
+
+.hint .linkish {
+  font-size: inherit;
+}

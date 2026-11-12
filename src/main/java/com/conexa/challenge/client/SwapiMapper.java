@@ -1,19 +1,17 @@
 package com.conexa.challenge.client;
 
+import com.conexa.challenge.model.dto.CatalogItem;
 import com.conexa.challenge.model.dto.PageResponse;
-import com.conexa.challenge.model.dto.SwapiItem;
-import com.conexa.challenge.model.dto.SwapiRawListResponse;
-import com.fasterxml.jackson.databind.JsonNode;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 /**
- * Convierte respuestas crudas de SWAPI (swapi.tech) al contrato interno de la API.
+ * Convierte las respuestas de swapi.tech al contrato de la API.
  */
 @Component
 public class SwapiMapper {
@@ -21,138 +19,48 @@ public class SwapiMapper {
     private static final Pattern ID_FROM_URL = Pattern.compile(".*/(\\d+)/?$");
 
     /**
-     * Mapea un listado SWAPI a {@link PageResponse}.
+     * Mapea un listado. Si el origen ya paginó se respeta su paginación; si devolvió todo junto
+     * (búsquedas, films) se pagina acá.
      */
-    public PageResponse<SwapiItem> toPage(SwapiRawListResponse raw, SwapiResource resource, int page, int limit) {
-        List<SwapiItem> content = new ArrayList<>();
-        for (JsonNode node : iterable(firstArray(raw.results(), raw.result()))) {
-            content.add(toItemFromNode(node, resource));
+    public PageResponse<CatalogItem> toPage(SwapiListResponse raw, SwapiResource resource, int page, int limit) {
+        var items = raw.rows().stream().map(row -> toItem(row, resource)).toList();
+        if (raw.isPaginatedBySource()) {
+            return new PageResponse<>(items, page, limit, raw.totalRecords(), StringUtils.hasText(raw.next()));
         }
-        long total = raw.totalOrZero();
-        if (total == 0) {
-            total = content.size();
-        }
-        boolean hasNext = raw.next() != null && !raw.next().isBlank();
-        return new PageResponse<>(List.copyOf(content), page, limit, total, hasNext);
+        return PageResponse.slice(items, page, limit);
     }
 
     /**
-     * Normaliza un detalle SWAPI ({@code result.properties} o mapa plano).
+     * Normaliza un elemento: tanto la fila de un listado ({@code uid}, {@code name}, {@code url})
+     * como la forma con {@code properties} anidado.
      */
-    @SuppressWarnings("unchecked")
-    public SwapiItem toItemFromDetail(Map<String, Object> body, SwapiResource resource) {
-        if (body == null || body.isEmpty()) {
-            return new SwapiItem("", "", Map.of());
-        }
-        Object result = body.get("result");
-        if (result instanceof Map<?, ?> resultMap) {
-            Object props = resultMap.get("properties");
-            Map<String, Object> fields = props instanceof Map<?, ?> p
-                    ? new LinkedHashMap<>((Map<String, Object>) p)
-                    : new LinkedHashMap<>();
-            String uid = stringValue(resultMap.get("uid"));
-            if (uid.isBlank()) {
-                uid = extractId(stringValue(fields.get("url")));
-            }
-            String name = displayName(fields, resource);
-            return new SwapiItem(uid, name, Map.copyOf(fields));
-        }
-        return toItem(body, resource);
-    }
+    public CatalogItem toItem(Map<String, Object> row, SwapiResource resource) {
+        Map<String, Object> fields = row.get("properties") instanceof Map<?, ?> nested ? stringKeys(nested) : row;
 
-    /**
-     * Normaliza un ítem de listado (uid/name/url o properties).
-     */
-    public SwapiItem toItem(Map<String, Object> fields, SwapiResource resource) {
-        Map<String, Object> copy = fields == null ? Map.of() : new LinkedHashMap<>(fields);
-        if (copy.get("properties") instanceof Map<?, ?> nested) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> props = new LinkedHashMap<>((Map<String, Object>) nested);
-            String uid = stringValue(copy.get("uid"));
-            if (uid.isBlank()) {
-                uid = extractId(stringValue(props.get("url")));
-            }
-            return new SwapiItem(uid, displayName(props, resource), Map.copyOf(props));
-        }
-        String id = stringValue(copy.get("uid"));
+        String id = text(row.get("uid"));
         if (id.isBlank()) {
-            id = extractId(stringValue(copy.get("url")));
+            id = extractId(text(fields.get("url")));
         }
-        return new SwapiItem(id, displayName(copy, resource), Map.copyOf(copy));
+        return new CatalogItem(id, text(fields.get(resource.displayField())), immutableCopy(fields));
     }
 
-    /**
-     * Obtiene el id numérico desde la URL de SWAPI.
-     */
-    public String extractId(String url) {
-        if (url == null || url.isBlank()) {
-            return "";
-        }
+    private static String extractId(String url) {
         Matcher matcher = ID_FROM_URL.matcher(url.trim());
         return matcher.matches() ? matcher.group(1) : "";
     }
 
-    private SwapiItem toItemFromNode(JsonNode node, SwapiResource resource) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        node.fields().forEachRemaining(entry -> map.put(entry.getKey(), jsonToJava(entry.getValue())));
-        return toItem(map, resource);
+    private static Map<String, Object> stringKeys(Map<?, ?> source) {
+        Map<String, Object> copy = new LinkedHashMap<>();
+        source.forEach((key, value) -> copy.put(String.valueOf(key), value));
+        return copy;
     }
 
-    private static Object jsonToJava(JsonNode node) {
-        if (node == null || node.isNull()) {
-            return null;
-        }
-        if (node.isTextual()) {
-            return node.asText();
-        }
-        if (node.isNumber()) {
-            return node.numberValue();
-        }
-        if (node.isBoolean()) {
-            return node.asBoolean();
-        }
-        if (node.isArray()) {
-            List<Object> list = new ArrayList<>();
-            node.forEach(child -> list.add(jsonToJava(child)));
-            return list;
-        }
-        if (node.isObject()) {
-            Map<String, Object> map = new LinkedHashMap<>();
-            node.fields().forEachRemaining(e -> map.put(e.getKey(), jsonToJava(e.getValue())));
-            return map;
-        }
-        return node.asText();
+    /** {@code Map.copyOf} no admite valores {@code null}, y SWAPI puede mandarlos. */
+    private static Map<String, Object> immutableCopy(Map<String, Object> source) {
+        return Collections.unmodifiableMap(new LinkedHashMap<>(source));
     }
 
-    private static JsonNode firstArray(JsonNode primary, JsonNode fallback) {
-        if (primary != null && primary.isArray()) {
-            return primary;
-        }
-        if (fallback != null && fallback.isArray()) {
-            return fallback;
-        }
-        return null;
-    }
-
-    private static Iterable<JsonNode> iterable(JsonNode array) {
-        if (array == null || !array.isArray()) {
-            return List.of();
-        }
-        return array::elements;
-    }
-
-    private static String displayName(Map<String, Object> fields, SwapiResource resource) {
-        String name = stringValue(fields.get(resource.displayField()));
-        if (name.isBlank()) {
-            name = stringValue(fields.get("name"));
-        }
-        if (name.isBlank()) {
-            name = stringValue(fields.get("title"));
-        }
-        return name;
-    }
-
-    private static String stringValue(Object value) {
+    private static String text(Object value) {
         return value == null ? "" : String.valueOf(value);
     }
 }

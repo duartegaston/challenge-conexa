@@ -15,19 +15,22 @@
         <form id="login-form" class="login-form" autocomplete="on">
           <label>
             Usuario
-            <input id="username" name="username" type="text" required value="user" />
+            <input id="username" name="username" type="text" required autocomplete="username" maxlength="50" />
           </label>
           <label>
             Contraseña
-            <input id="password" name="password" type="password" required value="user123" />
+            <input id="password" name="password" type="password" required autocomplete="current-password" maxlength="72" />
           </label>
           <button class="cta" type="submit" id="login-btn">Entrar</button>
         </form>
+        <p class="hint">
+          <span id="toggle-text">¿No tenés cuenta?</span>
+          <button type="button" class="linkish" id="toggle-mode">Crear una</button>
+        </p>
         <p class="hint">Demo: <code>user</code> / <code>user123</code> · <code>admin</code> / <code>admin123</code></p>
         <p id="login-error" class="error-banner" role="alert"></p>
       </div>
     </main>
-    <script src="/js/auth.js"></script>
-    <script src="/js/login.js"></script>
+    <script type="module" src="/js/login.js"></script>
   </body>
 </html>

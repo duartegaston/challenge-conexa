@@ -2,13 +2,11 @@
 .github
 .idea
 .vscode
+.cursor
 target
 *.iml
 .env
 .env.*
-!.env.example
 data
 **/data
 README.md
-sonar-project.properties
-.cursor

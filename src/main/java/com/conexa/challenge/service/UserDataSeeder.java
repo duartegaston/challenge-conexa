@@ -4,26 +4,25 @@ import com.conexa.challenge.config.SeedProperties;
 import com.conexa.challenge.model.Role;
 import com.conexa.challenge.model.UserEntity;
 import com.conexa.challenge.repository.UserRepository;
-import java.time.Instant;
 import java.util.Set;
-import java.util.UUID;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Siembra usuarios de demo al arranque cuando aún no existen.
+ * Crea los usuarios de demo ({@code user} y {@code admin}) al arrancar si todavía no existen.
+ * Se desactiva con {@code app.security.seed.enabled=false}.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(prefix = "app.security.seed", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class UserDataSeeder implements ApplicationRunner {
-
-    private static final Logger log = LoggerFactory.getLogger(UserDataSeeder.class);
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -40,14 +39,7 @@ public class UserDataSeeder implements ApplicationRunner {
         if (userRepository.existsByUsername(username)) {
             return;
         }
-        UserEntity user = new UserEntity(
-                UUID.randomUUID(),
-                username,
-                passwordEncoder.encode(rawPassword),
-                roles,
-                true,
-                Instant.now());
-        userRepository.save(user);
+        userRepository.save(new UserEntity(username, passwordEncoder.encode(rawPassword), roles));
         log.info("Seeded user '{}' with roles {}", username, roles);
     }
 }

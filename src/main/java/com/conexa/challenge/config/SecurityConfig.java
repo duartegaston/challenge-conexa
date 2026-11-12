@@ -1,18 +1,15 @@
 package com.conexa.challenge.config;
 
-import com.conexa.challenge.model.dto.ErrorResponse;
+import com.conexa.challenge.model.Role;
 import com.conexa.challenge.security.JwtAuthenticationFilter;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
+import com.conexa.challenge.security.JwtService;
+import com.conexa.challenge.security.SecurityProblemHandler;
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -23,57 +20,49 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Seguridad JWT stateless: deny-by-default, CSRF off, UI estática pública.
+ * Seguridad JWT stateless. Toda la autorización por rol vive acá, en un solo lugar:
+ * <ul>
+ *   <li>público: login, registro, UI estática, health y documentación;</li>
+ *   <li>{@code /api/v1/admin/**}: ADMIN;</li>
+ *   <li>{@code /api/v1/auth/me}: cualquier usuario autenticado;</li>
+ *   <li>resto de {@code /api/v1/**}: USER.</li>
+ * </ul>
  */
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
-@RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final ObjectMapper objectMapper;
+    private static final String[] PUBLIC_PATHS = {
+        "/", "/index.html", "/app.html", "/error",
+        "/actuator/health", "/actuator/health/**", "/actuator/info",
+        "/v3/api-docs", "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**"
+    };
 
     @Bean
-    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf(AbstractHttpConfigurer::disable)
-                .cors(Customizer.withDefaults())
+    SecurityFilterChain securityFilterChain(
+            HttpSecurity http, JwtService jwtService, SecurityProblemHandler problemHandler) throws Exception {
+        http
+                // API stateless con Bearer en header: sin cookies ni sesión no hay vector CSRF.
+                .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/register")
                         .permitAll()
-                        .requestMatchers(
-                                "/",
-                                "/index.html",
-                                "/app.html",
-                                "/css/**",
-                                "/js/**",
-                                "/favicon.ico",
-                                "/actuator/health",
-                                "/actuator/health/**",
-                                "/actuator/info",
-                                "/v3/api-docs",
-                                "/v3/api-docs/**",
-                                "/swagger-ui.html",
-                                "/swagger-ui/**")
+                        .requestMatchers(PUBLIC_PATHS)
                         .permitAll()
+                        .requestMatchers(PathRequest.toStaticResources().atCommonLocations())
+                        .permitAll()
+                        .requestMatchers("/api/v1/admin/**")
+                        .hasRole(Role.ADMIN.name())
+                        .requestMatchers("/api/v1/auth/me")
+                        .authenticated()
+                        .requestMatchers("/api/v1/**")
+                        .hasRole(Role.USER.name())
                         .anyRequest()
                         .authenticated())
-                .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
-                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            objectMapper.writeValue(
-                                    response.getOutputStream(),
-                                    ErrorResponse.of(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"));
-                        })
-                        .accessDeniedHandler((request, response, accessDeniedException) -> {
-                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                            objectMapper.writeValue(
-                                    response.getOutputStream(),
-                                    ErrorResponse.of(HttpServletResponse.SC_FORBIDDEN, "Forbidden"));
-                        }))
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .exceptionHandling(ex ->
+                        ex.authenticationEntryPoint(problemHandler).accessDeniedHandler(problemHandler))
+                .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

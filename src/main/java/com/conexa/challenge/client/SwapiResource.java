@@ -2,6 +2,9 @@ package com.conexa.challenge.client;
 
 /**
  * Recursos del catálogo SWAPI expuestos por la API.
+ *
+ * <p>{@code displayField} es el campo con el nombre visible y también el parámetro de búsqueda de SWAPI
+ * ({@code name}, o {@code title} en films).
  */
 public enum SwapiResource {
     PEOPLE("people", "name"),

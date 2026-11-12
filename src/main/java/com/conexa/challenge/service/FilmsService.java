@@ -1,39 +1,26 @@
 package com.conexa.challenge.service;
 
+import com.conexa.challenge.client.SwapiClient;
 import com.conexa.challenge.client.SwapiResource;
+import com.conexa.challenge.model.dto.CatalogItem;
 import com.conexa.challenge.model.dto.PageResponse;
-import com.conexa.challenge.model.dto.SwapiItem;
-import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 /**
- * Servicio de películas (films) de SWAPI.
+ * Catálogo de películas (films) de SWAPI. Se busca por {@code title}; {@code name} se acepta como alias.
  */
 @Service
-@RequiredArgsConstructor
-public class FilmsService {
+public class FilmsService extends AbstractCatalogService {
 
-    private final CatalogService catalogService;
+    public FilmsService(SwapiClient swapiClient) {
+        super(swapiClient, SwapiResource.FILMS);
+    }
 
     /**
-     * Lista films; {@code title} tiene prioridad sobre {@code name} para el search remoto.
+     * Igual que {@link #list(int, Integer, String)}, pero {@code title} tiene prioridad sobre {@code name}.
      */
-    public PageResponse<SwapiItem> list(int page, Integer limit, String name, String title) {
-        String search = firstNonBlank(title, name);
-        return catalogService.list(SwapiResource.FILMS, page, limit, search);
-    }
-
-    public SwapiItem getById(String id) {
-        return catalogService.getById(SwapiResource.FILMS, id);
-    }
-
-    private static String firstNonBlank(String primary, String fallback) {
-        if (primary != null && !primary.isBlank()) {
-            return primary.trim();
-        }
-        if (fallback != null && !fallback.isBlank()) {
-            return fallback.trim();
-        }
-        return null;
+    public PageResponse<CatalogItem> list(int page, Integer limit, String name, String title) {
+        return list(page, limit, StringUtils.hasText(title) ? title : name);
     }
 }

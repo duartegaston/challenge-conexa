@@ -1,13 +1,8 @@
 # Fly.io — Challenge Conexa
 # Si el nombre está tomado: fly apps create <otro-nombre> y actualizar `app` abajo.
+# Secretos (no van en este archivo):  fly secrets set JWT_SECRET="$(openssl rand -base64 48)"
 app = "challenge-conexa"
 primary_region = "iad"
-
-[build]
-
-[env]
-  SPRING_PROFILES_ACTIVE = "prod"
-  H2_FILE_PATH = "/data/challenge"
 
 [http_service]
   internal_port = 8080
@@ -15,7 +10,6 @@ primary_region = "iad"
   auto_stop_machines = "stop"
   auto_start_machines = true
   min_machines_running = 0
-  processes = ["app"]
 
   [[http_service.checks]]
     interval = "15s"
@@ -29,9 +23,10 @@ primary_region = "iad"
   cpu_kind = "shared"
   cpus = 1
 
-# Persistencia H2 (opcional, recomendado si el plan lo permite):
+# Persistencia de usuarios (H2 en archivo). Sin volumen, los usuarios registrados se pierden en cada
+# redeploy (los de seed se recrean solos). Para activarla:
 #   fly volumes create challenge_data --region iad --size 1
-# Luego descomentar:
+# y descomentar:
 # [[mounts]]
 #   source = "challenge_data"
 #   destination = "/data"
