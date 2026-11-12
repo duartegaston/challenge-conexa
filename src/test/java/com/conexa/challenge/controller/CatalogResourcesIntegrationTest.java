@@ -1,5 +1,8 @@
 package com.conexa.challenge.controller;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -179,6 +182,84 @@ class CatalogResourcesIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk());
 
         verify(swapiClient).getList(SwapiResource.FILMS, 1, 10, "empire");
+    }
+
+    @ParameterizedTest
+    @MethodSource("resources")
+    void listFilteredByIdReturnsASingleItemPage(String path, SwapiResource resource) throws Exception {
+        when(swapiClient.getById(resource, "4")).thenReturn(item("4", "Item four"));
+
+        mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, userBearer()).param("id", "4"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.hasNext").value(false))
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value("4"))
+                .andExpect(jsonPath("$.content[0].name").value("Item four"));
+
+        verify(swapiClient, never()).getList(any(), anyInt(), anyInt(), any());
+    }
+
+    @ParameterizedTest
+    @MethodSource("resources")
+    void listFilteredByUnknownIdIsAnEmptyPage(String path, SwapiResource resource) throws Exception {
+        when(swapiClient.getById(resource, "999")).thenThrow(new ResourceNotFoundException("not found 999"));
+
+        mockMvc.perform(get(path).header(HttpHeaders.AUTHORIZATION, userBearer()).param("id", "999"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(0))
+                .andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @ParameterizedTest
+    @MethodSource("resources")
+    void listFilteredByIdAndNameRequiresBothToMatch(String path, SwapiResource resource) throws Exception {
+        when(swapiClient.getById(resource, "4")).thenReturn(item("4", "Item four"));
+
+        mockMvc.perform(get(path)
+                        .header(HttpHeaders.AUTHORIZATION, userBearer())
+                        .param("id", "4")
+                        .param("name", "FOUR"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value("4"));
+
+        mockMvc.perform(get(path)
+                        .header(HttpHeaders.AUTHORIZATION, userBearer())
+                        .param("id", "4")
+                        .param("name", "other"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(0))
+                .andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"abc", "1x", "-1"})
+    void nonNumericIdFilterIsBadRequestWithoutCallingSwapi(String id) throws Exception {
+        mockMvc.perform(get("/api/v1/people").header(HttpHeaders.AUTHORIZATION, userBearer()).param("id", id))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors.id").exists());
+
+        verifyNoInteractions(swapiClient);
+    }
+
+    @Test
+    void filmsListFilteredByIdMatchesAgainstTitle() throws Exception {
+        when(swapiClient.getById(SwapiResource.FILMS, "1")).thenReturn(item("1", "A New Hope"));
+
+        mockMvc.perform(get("/api/v1/films")
+                        .header(HttpHeaders.AUTHORIZATION, userBearer())
+                        .param("id", "1")
+                        .param("title", "hope"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].name").value("A New Hope"));
+
+        mockMvc.perform(get("/api/v1/films")
+                        .header(HttpHeaders.AUTHORIZATION, userBearer())
+                        .param("id", "1")
+                        .param("title", "empire"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.total").value(0));
     }
 
     @Test

@@ -29,12 +29,16 @@ public abstract class AbstractCatalogController<S extends AbstractCatalogService
     }
 
     @GetMapping
-    @Operation(summary = "Listado paginado", description = "`name` filtra en SWAPI por nombre (coincidencia parcial).")
+    @Operation(
+            summary = "Listado paginado",
+            description = "`name` filtra por nombre (coincidencia parcial). `id` filtra por id y devuelve 0 o 1 "
+                    + "elementos; si vienen ambos, el elemento debe cumplir los dos.")
     public PageResponse<CatalogItem> list(
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(required = false) @Min(1) @Max(AbstractCatalogService.MAX_LIMIT) Integer limit,
+            @RequestParam(required = false) @Pattern(regexp = "\\d+", message = "must be a number") String id,
             @RequestParam(required = false) String name) {
-        return service.list(page, limit, name);
+        return service.list(page, limit, id, name);
     }
 
     @GetMapping("/{id}")

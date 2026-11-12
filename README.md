@@ -94,10 +94,17 @@ TOKEN=$(curl -s -X POST http://localhost:8080/api/v1/auth/login \
 
 curl -s "http://localhost:8080/api/v1/people?page=1&limit=5&name=sky" -H "Authorization: Bearer $TOKEN"
 curl -s http://localhost:8080/api/v1/people/1 -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:8080/api/v1/people?id=1&name=sky" -H "Authorization: Bearer $TOKEN"
 curl -s "http://localhost:8080/api/v1/films?title=hope" -H "Authorization: Bearer $TOKEN"
 ```
 
-Listado: `{ "content", "page", "limit", "total", "hasNext" }`. `page` ≥ 1, `limit` entre 1 y 100 (default 10). El filtro `name` (o `title` en films) busca en SWAPI por coincidencia parcial. El `id` del detalle es numérico.
+Listado: `{ "content", "page", "limit", "total", "hasNext" }`. `page` ≥ 1, `limit` entre 1 y 100 (default 10).
+
+**Filtros** (se pueden usar solos o combinados):
+
+- `name` (o `title` en films): busca en SWAPI por coincidencia parcial, sin distinguir mayúsculas.
+- `id` (numérico): devuelve una página con 0 o 1 elementos (vacía si el id no existe, no es un error). Si se combina con `name`/`title`, el elemento debe cumplir ambos.
+- Para el detalle completo de un id, `GET /{recurso}/{id}` (404 si no existe).
 
 ### Errores
 
@@ -122,7 +129,7 @@ Todos los errores son `application/problem+json` ([RFC 7807](https://datatracker
 ## UI demo (look Star Wars)
 
 1. http://localhost:8080/ — login o "Crear una" cuenta (JWT en `sessionStorage`)
-2. http://localhost:8080/app.html — tabs, filtro, paginación y detalle; con el usuario `admin` aparece "Vaciar caché"
+2. http://localhost:8080/app.html — tabs, filtros por nombre y/o id, paginación y detalle; con el usuario `admin` aparece "Vaciar caché"
 3. Un 401 devuelve al login
 
 Tipografía Orbitron / Exo 2 (Google Fonts); fondo espacial; acentos oro crawl + azul sable.
@@ -145,10 +152,10 @@ Base: `/api/v1`.
 | POST | `/auth/login` | Público | Emite JWT |
 | POST | `/auth/register` | Público | Crea usuario USER |
 | GET | `/auth/me` | Autenticado | Usuario y roles |
-| GET | `/people` · `/people/{id}` | USER | `page`, `limit`, `name` |
-| GET | `/films` · `/films/{id}` | USER | `page`, `limit`, `title` (o `name`) |
-| GET | `/starships` · `/starships/{id}` | USER | `page`, `limit`, `name` |
-| GET | `/vehicles` · `/vehicles/{id}` | USER | `page`, `limit`, `name` |
+| GET | `/people` · `/people/{id}` | USER | `page`, `limit`, `id`, `name` |
+| GET | `/films` · `/films/{id}` | USER | `page`, `limit`, `id`, `title` (o `name`) |
+| GET | `/starships` · `/starships/{id}` | USER | `page`, `limit`, `id`, `name` |
+| GET | `/vehicles` · `/vehicles/{id}` | USER | `page`, `limit`, `id`, `name` |
 | DELETE | `/admin/cache` | ADMIN | Vacía las cachés de SWAPI (204) |
 | GET | `/actuator/health` | Público | Liveness |
 

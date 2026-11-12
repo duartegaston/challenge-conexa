@@ -18,9 +18,9 @@ public class FilmsService extends AbstractCatalogService {
     }
 
     /**
-     * Igual que {@link #list(int, Integer, String)}, pero {@code title} tiene prioridad sobre {@code name}.
+     * Igual que {@link #list(int, Integer, String, String)}, pero {@code title} tiene prioridad sobre {@code name}.
      */
-    public PageResponse<CatalogItem> list(int page, Integer limit, String name, String title) {
-        return list(page, limit, StringUtils.hasText(title) ? title : name);
+    public PageResponse<CatalogItem> list(int page, Integer limit, String id, String name, String title) {
+        return list(page, limit, id, StringUtils.hasText(title) ? title : name);
     }
 }

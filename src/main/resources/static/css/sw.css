@@ -285,7 +285,7 @@ body {
 
 .controls {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr 6rem auto auto;
   gap: 0.75rem;
   margin-bottom: 1.25rem;
 }

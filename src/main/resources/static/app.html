@@ -27,7 +27,16 @@
         </nav>
 
         <div class="controls">
-          <input id="filter" type="search" placeholder="Filtrar por nombre / título…" aria-label="Filtro" />
+          <input id="filter" type="search" placeholder="Filtrar por nombre / título…" aria-label="Filtro por nombre" />
+          <input
+            id="filter-id"
+            class="id-input"
+            type="text"
+            inputmode="numeric"
+            maxlength="9"
+            placeholder="ID"
+            aria-label="Filtro por id"
+          />
           <select id="limit" aria-label="Límite">
             <option value="5">5 / pág.</option>
             <option value="10" selected>10 / pág.</option>

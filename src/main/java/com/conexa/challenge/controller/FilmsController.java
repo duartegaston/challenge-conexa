@@ -34,13 +34,15 @@ public class FilmsController {
     @GetMapping
     @Operation(
             summary = "Listado paginado",
-            description = "`title` (o su alias `name`) filtra por título; si vienen ambos, gana `title`.")
+            description = "`title` (o su alias `name`) filtra por título; si vienen ambos, gana `title`. "
+                    + "`id` filtra por id y devuelve 0 o 1 elementos; combinado con `title`, debe cumplir los dos.")
     public PageResponse<CatalogItem> list(
             @RequestParam(defaultValue = "1") @Min(1) int page,
             @RequestParam(required = false) @Min(1) @Max(AbstractCatalogService.MAX_LIMIT) Integer limit,
+            @RequestParam(required = false) @Pattern(regexp = "\\d+", message = "must be a number") String id,
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String title) {
-        return filmsService.list(page, limit, name, title);
+        return filmsService.list(page, limit, id, name, title);
     }
 
     @GetMapping("/{id}")

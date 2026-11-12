@@ -4,6 +4,7 @@ import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
 import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 /**
@@ -19,7 +20,7 @@ public class RestClientConfig {
                 .withConnectTimeout(properties.connectTimeout())
                 .withReadTimeout(properties.readTimeout());
 
-        return builder.baseUrl(properties.baseUrl().replaceAll("/+$", ""))
+        return builder.baseUrl(StringUtils.trimTrailingCharacter(properties.baseUrl(), '/'))
                 .requestFactory(ClientHttpRequestFactoryBuilder.detect().build(settings))
                 .build();
     }

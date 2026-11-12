@@ -43,7 +43,7 @@ public class SecurityConfig {
             HttpSecurity http, JwtService jwtService, SecurityProblemHandler problemHandler) throws Exception {
         http
                 // API stateless con Bearer en header: sin cookies ni sesión no hay vector CSRF.
-                .csrf(AbstractHttpConfigurer::disable)
+                .csrf(AbstractHttpConfigurer::disable) // NOSONAR java:S4502 - JWT en header, sin sesión ni cookies
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/login", "/api/v1/auth/register")

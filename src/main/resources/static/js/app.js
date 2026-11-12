@@ -12,8 +12,9 @@ const pageInfo = $("page-info");
 const prevBtn = $("prev");
 const nextBtn = $("next");
 const filterInput = $("filter");
+const idInput = $("filter-id");
 
-const state = { resource: "people", page: 1, limit: 10, filter: "", hasNext: false };
+const state = { resource: "people", page: 1, limit: 10, filter: "", id: "", hasNext: false };
 
 // Cada carga lleva un número; si llega una respuesta vieja (cambio rápido de tab, cold start lento) se descarta.
 let latestRequest = 0;
@@ -43,36 +44,47 @@ document.querySelectorAll(".tab").forEach((tab) => {
     document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
     state.resource = tab.dataset.resource;
     state.page = 1;
+    // El id pertenece a un recurso: al cambiar de tab no tiene sentido arrastrarlo.
+    state.id = "";
+    idInput.value = "";
     detailEl.classList.add("hidden");
-    loadList();
+    void loadList();
   });
 });
 
 function applyFilter() {
+  const id = idInput.value.trim();
+  if (id && !/^\d+$/.test(id)) {
+    setStatus("El id debe ser un número.", true);
+    return;
+  }
   state.filter = filterInput.value.trim();
+  state.id = id;
   state.page = 1;
-  loadList();
+  void loadList();
 }
 $("search-btn").addEventListener("click", applyFilter);
-filterInput.addEventListener("keydown", (event) => event.key === "Enter" && applyFilter());
+[filterInput, idInput].forEach((input) =>
+  input.addEventListener("keydown", (event) => event.key === "Enter" && applyFilter()),
+);
 
 $("limit").addEventListener("change", (event) => {
   state.limit = Number(event.target.value);
   state.page = 1;
-  loadList();
+  void loadList();
 });
 
 prevBtn.addEventListener("click", () => {
   if (state.page > 1) {
     state.page -= 1;
-    loadList();
+    void loadList();
   }
 });
 
 nextBtn.addEventListener("click", () => {
   if (state.hasNext) {
     state.page += 1;
-    loadList();
+    void loadList();
   }
 });
 
@@ -84,6 +96,9 @@ async function loadList() {
   const params = new URLSearchParams({ page: state.page, limit: state.limit });
   if (state.filter) {
     params.set(state.resource === "films" ? "title" : "name", state.filter);
+  }
+  if (state.id) {
+    params.set("id", state.id);
   }
 
   try {
@@ -119,11 +134,11 @@ function renderRow(item) {
   li.tabIndex = 0;
   li.setAttribute("role", "button");
   li.append(element("span", "name", item.name || "(sin nombre)"), element("span", "id", `#${item.id || "?"}`));
-  li.addEventListener("click", () => loadDetail(item.id));
+  li.addEventListener("click", () => void loadDetail(item.id));
   li.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      loadDetail(item.id);
+      void loadDetail(item.id);
     }
   });
   return li;
@@ -184,4 +199,4 @@ function element(tag, className, text) {
   return node;
 }
 
-loadList();
+void loadList();
