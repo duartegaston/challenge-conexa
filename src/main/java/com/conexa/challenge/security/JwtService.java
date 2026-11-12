@@ -7,76 +7,77 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.Date;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import javax.crypto.SecretKey;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 /**
- * Emite y valida tokens JWT (HS256) con claims de roles.
+ * Emite y valida tokens JWT (HS256) con el username como subject y los roles como claim.
  */
+@Slf4j
 @Service
 public class JwtService {
 
+    private static final String ROLES_CLAIM = "roles";
+
     private final SecretKey secretKey;
-    private final long expirationMinutes;
+    private final Duration expiration;
 
     public JwtService(JwtProperties properties) {
         this.secretKey = Keys.hmacShaKeyFor(properties.secret().getBytes(StandardCharsets.UTF_8));
-        this.expirationMinutes = properties.expirationMinutes();
+        this.expiration = properties.expiration();
     }
 
-    /**
-     * Genera un access token para el usuario y sus roles.
-     */
     public String generateToken(String username, Collection<Role> roles) {
         Instant now = Instant.now();
-        Instant expiry = now.plusSeconds(expirationMinutes * 60);
-        List<String> roleNames = roles.stream().map(Enum::name).toList();
         return Jwts.builder()
                 .subject(username)
-                .claim("roles", roleNames)
+                .claim(ROLES_CLAIM, roles.stream().map(Role::name).sorted().toList())
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(expiry))
+                .expiration(Date.from(now.plus(expiration)))
                 .signWith(secretKey)
                 .compact();
     }
 
-    public long getExpiresInSeconds() {
-        return expirationMinutes * 60;
-    }
-
-    public String extractUsername(String token) {
-        return parseClaims(token).getSubject();
-    }
-
-    public List<String> extractRoles(String token) {
-        Object roles = parseClaims(token).get("roles");
-        if (roles instanceof List<?> list) {
-            return list.stream().map(Object::toString).toList();
-        }
-        return List.of();
+    public long expiresInSeconds() {
+        return expiration.toSeconds();
     }
 
     /**
-     * Indica si el token tiene firma válida y no expiró.
+     * Valida firma y vigencia en un solo parseo.
+     *
+     * @return la identidad del token, o vacío si es inválido, está vencido o no tiene subject
      */
-    public boolean isValid(String token) {
+    public Optional<JwtPrincipal> parse(String token) {
         try {
-            Claims claims = parseClaims(token);
-            return claims.getExpiration().after(new Date());
+            Claims claims = Jwts.parser()
+                    .verifyWith(secretKey)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            if (claims.getSubject() == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new JwtPrincipal(claims.getSubject(), rolesFrom(claims)));
         } catch (JwtException | IllegalArgumentException ex) {
-            return false;
+            log.debug("Rejected JWT: {}", ex.getMessage());
+            return Optional.empty();
         }
     }
 
-    private Claims parseClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+    private static Set<Role> rolesFrom(Claims claims) {
+        Set<Role> roles = EnumSet.noneOf(Role.class);
+        if (claims.get(ROLES_CLAIM) instanceof List<?> names) {
+            names.forEach(name -> Role.parse(String.valueOf(name)).ifPresent(roles::add));
+        }
+        return roles;
     }
 }

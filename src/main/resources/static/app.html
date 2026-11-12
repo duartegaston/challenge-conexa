@@ -13,6 +13,7 @@
         <h1 class="app-brand">CONEXA</h1>
         <div class="app-meta">
           <span id="who"></span>
+          <button type="button" class="linkish hidden" id="clear-cache" title="Solo ADMIN">Vaciar caché</button>
           <button type="button" class="linkish" id="logout">Salir</button>
         </div>
       </header>
@@ -26,13 +27,23 @@
         </nav>
 
         <div class="controls">
-          <input id="filter" type="search" placeholder="Filtrar por nombre / título…" />
+          <input id="filter" type="search" placeholder="Filtrar por nombre / título…" aria-label="Filtro por nombre" />
+          <input
+            id="filter-id"
+            class="id-input"
+            type="text"
+            inputmode="numeric"
+            maxlength="9"
+            placeholder="ID"
+            aria-label="Filtro por id"
+          />
           <select id="limit" aria-label="Límite">
             <option value="5">5 / pág.</option>
             <option value="10" selected>10 / pág.</option>
             <option value="20">20 / pág.</option>
+            <option value="50">50 / pág.</option>
           </select>
-          <button type="button" class="cta" id="search-btn" style="padding: 0.7rem 1rem; margin: 0">Buscar</button>
+          <button type="button" class="cta" id="search-btn">Buscar</button>
         </div>
 
         <p id="status" class="status" role="status"></p>
@@ -47,7 +58,6 @@
         <section id="detail" class="detail hidden" aria-live="polite"></section>
       </main>
     </div>
-    <script src="/js/auth.js"></script>
-    <script src="/js/app.js"></script>
+    <script type="module" src="/js/app.js"></script>
   </body>
 </html>

@@ -3,112 +3,98 @@ package com.conexa.challenge.client;
 import com.conexa.challenge.config.CacheConfig;
 import com.conexa.challenge.exception.ResourceNotFoundException;
 import com.conexa.challenge.exception.SwapiUnavailableException;
+import com.conexa.challenge.model.dto.CatalogItem;
 import com.conexa.challenge.model.dto.PageResponse;
-import com.conexa.challenge.model.dto.SwapiItem;
-import com.conexa.challenge.model.dto.SwapiRawListResponse;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 /**
- * Cliente HTTP hacia SWAPI (https://www.swapi.tech) vía Spring RestClient + caché Caffeine.
- * No usa SDK de terceros específico de Star Wars.
+ * Cliente de SWAPI (https://www.swapi.tech) con caché Caffeine. Los errores del origen salen como
+ * {@link SwapiUnavailableException} (o {@link ResourceNotFoundException} para un 404 de detalle) y nunca se cachean.
+ *
+ * <p>Los argumentos llegan ya validados y normalizados desde el servicio.
  */
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class SwapiClient {
-
-    private static final Logger log = LoggerFactory.getLogger(SwapiClient.class);
-    private static final ParameterizedTypeReference<Map<String, Object>> MAP_TYPE =
-            new ParameterizedTypeReference<>() {};
 
     private final RestClient swapiRestClient;
     private final SwapiMapper swapiMapper;
 
     /**
-     * Obtiene un listado paginado (y opcionalmente filtrado) de un recurso SWAPI.
+     * Lista un recurso con paginación y filtro opcional por nombre/título. La clave de caché ignora
+     * mayúsculas en la búsqueda.
      */
     @Cacheable(
             cacheNames = CacheConfig.SWAPI_LISTS,
-            key = "#resource.path() + ':' + #page + ':' + #limit + ':' + (#search == null ? '' : #search)")
-    public PageResponse<SwapiItem> getList(SwapiResource resource, int page, int limit, String search) {
-        int safePage = Math.max(page, 1);
-        int safeLimit = Math.min(Math.max(limit, 1), 100);
-        try {
-            SwapiRawListResponse raw = swapiRestClient
-                    .get()
-                    .uri(uriBuilder -> {
-                        var builder = uriBuilder
-                                .path("/{resource}")
-                                .queryParam("page", safePage)
-                                .queryParam("limit", safeLimit);
-                        if (search != null && !search.isBlank()) {
-                            String filterParam = resource == SwapiResource.FILMS ? "title" : "name";
-                            builder.queryParam(filterParam, search.trim());
-                        }
-                        return builder.build(resource.path());
-                    })
-                    .retrieve()
-                    .onStatus(HttpStatusCode::isError, (request, response) -> {
-                        throw new SwapiUnavailableException(
-                                "SWAPI list request failed with status " + response.getStatusCode().value());
-                    })
-                    .body(SwapiRawListResponse.class);
-
-            if (raw == null) {
-                throw new SwapiUnavailableException("SWAPI returned an empty list body");
-            }
-            return swapiMapper.toPage(raw, resource, safePage, safeLimit);
-        } catch (SwapiUnavailableException | ResourceNotFoundException ex) {
-            throw ex;
-        } catch (RestClientResponseException ex) {
-            log.warn("SWAPI list error for {}: {}", resource.path(), ex.getStatusCode().value());
-            throw new SwapiUnavailableException("SWAPI is unavailable", ex);
-        } catch (RestClientException ex) {
-            log.warn("SWAPI list connection error for {}: {}", resource.path(), ex.toString());
-            throw new SwapiUnavailableException("SWAPI is unavailable", ex);
-        }
+            key = "#resource.path() + ':' + #page + ':' + #limit + ':' + (#search?.toLowerCase() ?: '')")
+    public PageResponse<CatalogItem> getList(SwapiResource resource, int page, int limit, String search) {
+        SwapiListResponse raw = fetch("list " + resource.path(), () -> swapiRestClient
+                .get()
+                .uri(uriBuilder -> {
+                    Map<String, Object> variables = new HashMap<>();
+                    variables.put("resource", resource.path());
+                    uriBuilder.path("/{resource}").queryParam("page", page).queryParam("limit", limit);
+                    if (search != null) {
+                        // Variable de URI (no literal) para que "{", "&" o "=" del texto se codifiquen.
+                        uriBuilder.queryParam(resource.displayField(), "{search}");
+                        variables.put("search", search);
+                    }
+                    return uriBuilder.build(variables);
+                })
+                .retrieve()
+                .body(SwapiListResponse.class));
+        return swapiMapper.toPage(raw, resource, page, limit);
     }
 
     /**
-     * Obtiene el detalle de un recurso SWAPI por id.
+     * Detalle de un recurso por id.
+     *
+     * @throws ResourceNotFoundException si SWAPI responde 404
      */
     @Cacheable(cacheNames = CacheConfig.SWAPI_DETAILS, key = "#resource.path() + ':' + #id")
-    public SwapiItem getById(SwapiResource resource, String id) {
-        try {
-            Map<String, Object> body = swapiRestClient
-                    .get()
-                    .uri("/{resource}/{id}", resource.path(), id)
-                    .retrieve()
-                    .onStatus(status -> status.value() == 404, (request, response) -> {
-                        throw new ResourceNotFoundException(
-                                resource.path() + " with id " + id + " was not found");
-                    })
-                    .onStatus(HttpStatusCode::isError, (request, response) -> {
-                        throw new SwapiUnavailableException(
-                                "SWAPI detail request failed with status " + response.getStatusCode().value());
-                    })
-                    .body(MAP_TYPE);
+    public CatalogItem getById(SwapiResource resource, String id) {
+        SwapiDetailResponse raw = fetch("detail " + resource.path() + "/" + id, () -> swapiRestClient
+                .get()
+                .uri("/{resource}/{id}", resource.path(), id)
+                .retrieve()
+                .onStatus(status -> status.value() == 404, (request, response) -> {
+                    throw new ResourceNotFoundException(resource.path() + " with id " + id + " was not found");
+                })
+                .body(SwapiDetailResponse.class));
 
-            if (body == null || body.isEmpty()) {
-                throw new SwapiUnavailableException("SWAPI returned an empty detail body");
+        if (raw.result() == null || raw.result().isEmpty()) {
+            throw new SwapiUnavailableException("SWAPI returned an empty detail for " + resource.path() + "/" + id);
+        }
+        return swapiMapper.toItem(raw.result(), resource);
+    }
+
+    /**
+     * Ejecuta la llamada y traduce cualquier falla del origen (status de error, timeout, cuerpo ilegible o
+     * vacío) a {@link SwapiUnavailableException}. Las excepciones de dominio lanzadas desde un status
+     * handler no son {@code RestClientException} y pasan sin tocarse.
+     */
+    private <T> T fetch(String description, Supplier<T> call) {
+        try {
+            T body = call.get();
+            if (body == null) {
+                throw new SwapiUnavailableException("SWAPI returned an empty response for " + description);
             }
-            return swapiMapper.toItemFromDetail(body, resource);
-        } catch (SwapiUnavailableException | ResourceNotFoundException ex) {
-            throw ex;
+            return body;
         } catch (RestClientResponseException ex) {
-            log.warn("SWAPI detail error for {}/{}: {}", resource.path(), id, ex.getStatusCode().value());
+            log.warn("SWAPI {} failed with status {}", description, ex.getStatusCode().value());
             throw new SwapiUnavailableException("SWAPI is unavailable", ex);
         } catch (RestClientException ex) {
-            log.warn("SWAPI detail connection error for {}/{}: {}", resource.path(), id, ex.toString());
+            log.warn("SWAPI {} failed: {}", description, ex.toString());
             throw new SwapiUnavailableException("SWAPI is unavailable", ex);
         }
     }

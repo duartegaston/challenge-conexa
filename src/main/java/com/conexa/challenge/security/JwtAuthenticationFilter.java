@@ -10,16 +10,19 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
-import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Filtro que autentica requests con header Authorization Bearer JWT.
+ * Autentica requests con {@code Authorization: Bearer <jwt>}. Un token ausente o inválido deja la request
+ * sin autenticar; el rechazo lo resuelve el resto de la cadena de seguridad.
+ *
+ * <p>No es un bean a propósito: se agrega solo a la cadena de Spring Security, así Boot no lo registra
+ * además como filtro de servlet.
  */
-@Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -33,29 +36,26 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain)
             throws ServletException, IOException {
+        String token = bearerToken(request);
+        if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            jwtService.parse(token).ifPresent(principal -> {
+                List<GrantedAuthority> authorities = principal.roles().stream()
+                        .<GrantedAuthority>map(role -> new SimpleGrantedAuthority(role.authority()))
+                        .toList();
+                var authentication = new UsernamePasswordAuthenticationToken(principal.username(), null, authorities);
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            });
+        }
+        filterChain.doFilter(request, response);
+    }
+
+    private static String bearerToken(HttpServletRequest request) {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header == null || !header.startsWith(BEARER_PREFIX)) {
-            filterChain.doFilter(request, response);
-            return;
+            return null;
         }
-
         String token = header.substring(BEARER_PREFIX.length()).trim();
-        if (token.isEmpty() || !jwtService.isValid(token)) {
-            filterChain.doFilter(request, response);
-            return;
-        }
-
-        if (SecurityContextHolder.getContext().getAuthentication() == null) {
-            String username = jwtService.extractUsername(token);
-            List<SimpleGrantedAuthority> authorities = jwtService.extractRoles(token).stream()
-                    .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
-                    .toList();
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(username, null, authorities);
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-        }
-
-        filterChain.doFilter(request, response);
+        return token.isEmpty() ? null : token;
     }
 }

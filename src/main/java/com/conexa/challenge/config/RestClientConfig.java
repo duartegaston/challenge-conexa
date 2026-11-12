@@ -1,34 +1,27 @@
 package com.conexa.challenge.config;
 
-import com.conexa.challenge.client.SwapiProperties;
-import java.time.Duration;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder;
+import org.springframework.boot.http.client.ClientHttpRequestFactorySettings;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 
 /**
- * Bean RestClient apuntando a SWAPI con timeouts configurables.
+ * {@link RestClient} hacia SWAPI. Parte del builder de Spring Boot (conserva métricas y observabilidad)
+ * y aplica los timeouts de {@link SwapiProperties}.
  */
 @Configuration
-@EnableConfigurationProperties({SwapiProperties.class, JwtProperties.class, SeedProperties.class})
 public class RestClientConfig {
 
     @Bean
-    RestClient swapiRestClient(SwapiProperties properties) {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(Duration.ofMillis(properties.connectTimeoutMs()));
-        requestFactory.setReadTimeout(Duration.ofMillis(properties.readTimeoutMs()));
+    RestClient swapiRestClient(RestClient.Builder builder, SwapiProperties properties) {
+        ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.defaults()
+                .withConnectTimeout(properties.connectTimeout())
+                .withReadTimeout(properties.readTimeout());
 
-        String baseUrl = properties.baseUrl();
-        if (baseUrl.endsWith("/")) {
-            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
-        }
-
-        return RestClient.builder()
-                .baseUrl(baseUrl)
-                .requestFactory(requestFactory)
+        return builder.baseUrl(StringUtils.trimTrailingCharacter(properties.baseUrl(), '/'))
+                .requestFactory(ClientHttpRequestFactoryBuilder.detect().build(settings))
                 .build();
     }
 }

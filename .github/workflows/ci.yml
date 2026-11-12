@@ -5,40 +5,37 @@ on:
     branches: [main]
   pull_request:
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-      - name: Tests
-        run: ./mvnw -B clean test
+permissions:
+  contents: read
+  pull-requests: read # SonarCloud decora el PR
 
-  sonar:
-    name: SonarCloud
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Tests y SonarCloud
     runs-on: ubuntu-latest
-    # Solo corre si el secret existe. Sin SONAR_TOKEN el análisis queda documentado pero no bloquea.
-    if: ${{ secrets.SONAR_TOKEN != '' }}
-    needs: test
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # Sonar necesita el historial completo para atribuir issues
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
           cache: maven
-      - name: SonarCloud scan
+
+      # Tests + cobertura (JaCoCo escribe target/site/jacoco/jacoco.xml).
+      - name: Tests
+        run: ./mvnw -B verify
+
+      # Los PR desde forks no reciben secrets: ahí el análisis se saltea en vez de fallar.
+      - name: SonarCloud
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          ./mvnw -B verify org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-            -Dsonar.projectKey=duartegaston_challenge-conexa \
-            -Dsonar.organization=duartegaston \
-            -Dsonar.host.url=https://sonarcloud.io
+        run: ./mvnw -B org.sonarsource.scanner.maven:sonar-maven-plugin:5.1.0.4751:sonar

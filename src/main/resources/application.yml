@@ -3,21 +3,30 @@ spring:
     name: challenge-conexa
   profiles:
     default: local
+  # H2 en memoria por defecto (local y tests). El perfil prod la reemplaza por H2 en archivo.
+  datasource:
+    url: jdbc:h2:mem:challenge;DB_CLOSE_DELAY=-1
+    username: sa
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: validate # el esquema lo maneja Flyway
     properties:
       hibernate:
         jdbc:
           time_zone: UTC
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
+  mvc:
+    problemdetails:
+      enabled: true # errores como application/problem+json (RFC 7807)
+  web:
+    locale: en # mensajes de validación siempre en inglés, sin depender del idioma del SO
+    locale-resolver: fixed
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
 
 server:
-  address: 0.0.0.0
   port: ${PORT:8080}
+  shutdown: graceful
 
 management:
   endpoints:
@@ -28,91 +37,52 @@ management:
     health:
       show-details: when_authorized
 
-springdoc:
-  api-docs:
-    path: /v3/api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-
 swapi:
   base-url: https://www.swapi.tech/api
-  connect-timeout-ms: 3000
-  read-timeout-ms: 5000
-
-cache:
-  swapi:
-    ttl-minutes: 5
+  connect-timeout: 3s
+  read-timeout: 5s
+  cache:
+    lists-ttl: 5m
+    details-ttl: 1h # los detalles casi no cambian
     max-size: 300
 
 app:
   security:
     jwt:
-      secret: ${JWT_SECRET:change-me-phase1-demo-secret-must-be-long-enough-256bits}
-      expiration-minutes: 60
+      expiration: 60m
     seed:
+      enabled: true
       user-password: ${SEED_USER_PASSWORD:user123}
       admin-password: ${SEED_ADMIN_PASSWORD:admin123}
 
 ---
-# Perfil local: H2 en memoria (compatible PostgreSQL) + Flyway.
+# Local: el secreto de abajo es SOLO para desarrollo. Puede pisarse con JWT_SECRET.
 spring:
   config:
     activate:
       on-profile: local
-  datasource:
-    url: jdbc:h2:mem:challenge;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  h2:
-    console:
-      enabled: false
-  jpa:
-    hibernate:
-      ddl-auto: validate
+
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:local-dev-only-secret-never-use-in-production-0123456789}
+
 logging:
   level:
-    root: INFO
     com.conexa.challenge: DEBUG
 
 ---
-# Perfil prod (Fly.io): H2 file-based para auth/seed. Sin Postgres managed de pago.
-# Preferir volumen montado en /data (ver fly.toml). Sin volumen, el archivo vive en el disco
-# efímero del contenedor: los users seed se recrean al arrancar si la DB está vacía.
+# Prod (Fly.io): H2 en archivo. Sin JWT_SECRET la aplicación no arranca (no hay valor por defecto).
+# Para que los usuarios registrados sobrevivan a un redeploy hay que montar un volumen en /data (ver fly.toml).
 spring:
   config:
     activate:
       on-profile: prod
   datasource:
-    url: jdbc:h2:file:${H2_FILE_PATH:/data/challenge};MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;AUTO_SERVER=FALSE
-    driver-class-name: org.h2.Driver
-    username: sa
+    url: jdbc:h2:file:${H2_FILE_PATH:/data/challenge}
     password: ${H2_PASSWORD:}
-  h2:
-    console:
-      enabled: false
-  jpa:
-    hibernate:
-      ddl-auto: validate
 
-logging:
-  level:
-    root: INFO
-    com.conexa.challenge: INFO
-
----
-# Perfil test: H2 + Flyway para tests de integración.
-spring:
-  config:
-    activate:
-      on-profile: test
-  datasource:
-    url: jdbc:h2:mem:challenge_test;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
-  jpa:
-    hibernate:
-      ddl-auto: validate
-  flyway:
-    enabled: true
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:}

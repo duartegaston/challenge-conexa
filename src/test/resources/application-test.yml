@@ -1,0 +1,5 @@
+# Perfil de tests. La base es la H2 en memoria de application.yml.
+app:
+  security:
+    jwt:
+      secret: test-only-secret-for-automated-tests-0123456789

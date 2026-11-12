@@ -285,7 +285,7 @@ body {
 
 .controls {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr 6rem auto auto;
   gap: 0.75rem;
   margin-bottom: 1.25rem;
 }
@@ -415,4 +415,20 @@ body {
 
 .hidden {
   display: none !important;
+}
+
+/* —— Ajustes de interacción —— */
+.controls .cta {
+  padding: 0.7rem 1rem;
+  margin: 0;
+}
+
+.results li:focus-visible {
+  outline: 2px solid var(--saber-blue);
+  outline-offset: 2px;
+  background: var(--fog);
+}
+
+.hint .linkish {
+  font-size: inherit;
 }
